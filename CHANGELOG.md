@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.3.0
+
+- Displays insertables en la interfaz (menu Insertar > Display): 7 segmentos y LED.
+  Los segmentos encienden en verde segun la fila/estado activo y se conectan por
+  nombre con las salidas; la etiqueta de cada segmento o LED se edita con un clic.
+
 ## 0.2.2
 
 - GUI: las columnas se cargan con Enter o el boton Aplicar (las flechas ya no

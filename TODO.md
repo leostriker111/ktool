@@ -3,8 +3,9 @@
 ## Backlog (pedido, por construir)
 
 ### Subsistema de Layout / visualizacion (grande)
-- Pestaña "Insertar" para inyectar elementos a la vista: display 7 segmentos,
-  16 segmentos, LED suelto, matriz de LEDs, semaforo, y plantillas comunes.
+- HECHO v0.3.0: Insertar > Display con 7 segmentos y LED, encendido por nombre y
+  etiquetas editables.
+- Falta: 16 segmentos, matriz de LEDs, semaforo y plantillas comunes.
 - Guardar / cargar "layouts" como archivo (JSON probable).
 - La columna de **notas como puente** (dos usos):
   1. Biblioteca de estados con nombre: si una fila tiene nota "hola" y existe un

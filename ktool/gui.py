@@ -81,6 +81,113 @@ def _parse_fill_number(text, rows):
     return [int(c) for c in format(val, f"0{rows}b")]
 
 
+# ---------- displays insertables ----------
+SEG_OFF = "#2b2b2b"
+SEG_ON = "#39ff62"
+DISP_BG = "#111111"
+NAME_FG = "#cfcf66"
+
+
+def _hbar(x1, x2, y, t):
+    h = t / 2
+    return [x1, y, x1 + h, y - h, x2 - h, y - h, x2, y, x2 - h, y + h, x1 + h, y + h]
+
+
+def _vbar(x, y1, y2, t):
+    h = t / 2
+    return [x, y1, x + h, y1 + h, x + h, y2 - h, x, y2, x - h, y2 - h, x - h, y1 + h]
+
+
+def _seg7_defs():
+    t, xL, xR, yT, yM, yB = 13, 26, 86, 24, 84, 144
+    defs = [
+        ("a", _hbar(xL, xR, yT, t)),
+        ("b", _vbar(xR, yT, yM, t)),
+        ("c", _vbar(xR, yM, yB, t)),
+        ("d", _hbar(xL, xR, yB, t)),
+        ("e", _vbar(xL, yM, yB, t)),
+        ("f", _vbar(xL, yT, yM, t)),
+        ("g", _hbar(xL, xR, yM, t)),
+    ]
+    return defs, 112, 168
+
+
+class DisplayWidget:
+    """Display sencillo (7 segmentos o LED) que enciende segun el estado activo.
+    Cada segmento/LED tiene una etiqueta (editable) que lo conecta con la salida
+    del mismo nombre."""
+
+    def __init__(self, app, parent, kind):
+        self.app = app
+        self.kind = kind
+        self.segments = []  # [{'name','poly','text','tag'}]
+        title = {"7seg": "7 segmentos", "led": "LED"}[kind]
+        self.frame = ttk.Frame(parent, relief="ridge", borderwidth=2, padding=3)
+        self.frame.pack(side=tk.TOP, fill=tk.X, pady=4)
+        head = ttk.Frame(self.frame)
+        head.pack(fill=tk.X)
+        ttk.Label(head, text=title, font=("", 9, "bold")).pack(side=tk.LEFT)
+        ttk.Button(head, text="x", width=2, command=self.remove).pack(side=tk.RIGHT)
+        if kind == "7seg":
+            defs, w, h = _seg7_defs()
+        else:
+            defs, w, h = [], 86, 96
+        self.canvas = tk.Canvas(self.frame, width=w, height=h, bg=DISP_BG, highlightthickness=0)
+        self.canvas.pack()
+        if kind == "7seg":
+            self._draw_segments(defs)
+        else:
+            self._draw_led()
+
+    @staticmethod
+    def _centroid(poly):
+        xs, ys = poly[0::2], poly[1::2]
+        return sum(xs) / len(xs), sum(ys) / len(ys)
+
+    def _add_seg(self, name, poly_id, text_id, tag):
+        seg = {"name": name, "poly": poly_id, "text": text_id, "tag": tag}
+        self.segments.append(seg)
+        self.canvas.tag_bind(tag, "<Button-1>", lambda e, s=seg: self._rename(s))
+
+    def _draw_segments(self, defs):
+        for i, (name, poly) in enumerate(defs):
+            tag = f"s{i}"
+            pid = self.canvas.create_polygon(poly, fill=SEG_OFF, outline="#000", tags=(tag,))
+            cx, cy = self._centroid(poly)
+            tid = self.canvas.create_text(cx, cy, text=name, fill=NAME_FG,
+                                          font=("Consolas", 8, "bold"), tags=(tag,))
+            self._add_seg(name, pid, tid, tag)
+
+    def _draw_led(self):
+        pid = self.canvas.create_oval(18, 14, 68, 64, fill=SEG_OFF, outline="#000", width=2, tags=("L",))
+        tid = self.canvas.create_text(43, 80, text="L", fill=NAME_FG,
+                                      font=("Consolas", 9, "bold"), tags=("L",))
+        self._add_seg("L", pid, tid, "L")
+
+    def _rename(self, seg):
+        new = simpledialog.askstring(
+            "Nombre del segmento/LED",
+            "Se conecta con la salida del mismo nombre:",
+            initialvalue=seg["name"], parent=self.app.root,
+        )
+        if not new or not new.strip():
+            return
+        seg["name"] = new.strip()
+        self.canvas.itemconfig(seg["text"], text=seg["name"])
+        self.app._refresh_displays()
+
+    def relight(self, name_value):
+        for seg in self.segments:
+            on = name_value.get(seg["name"]) == 1
+            self.canvas.itemconfig(seg["poly"], fill=SEG_ON if on else SEG_OFF)
+            self.canvas.itemconfig(seg["text"], fill="#0a0a0a" if on else NAME_FG)
+
+    def remove(self):
+        self.frame.destroy()
+        if self in self.app.displays:
+            self.app.displays.remove(self)
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -103,6 +210,7 @@ class App:
         self.drag_base = set()
         self.cursor = None               # (oi,row) celda activa para teclado
         self._rebuilding = False
+        self.displays = []               # DisplayWidget insertados
 
         self._build_menu()
         self._build_controls()
@@ -129,6 +237,15 @@ class App:
         m_edit.add_command(label="Seleccionar todo", command=self.select_all)
         m_edit.add_command(label="Limpiar valores", command=self.clear_values)
         menubar.add_cascade(label="Editar", menu=m_edit)
+
+        m_ins = tk.Menu(menubar, tearoff=0)
+        m_disp = tk.Menu(m_ins, tearoff=0)
+        m_disp.add_command(label="7 segmentos", command=lambda: self.insert_display("7seg"))
+        m_disp.add_command(label="LED", command=lambda: self.insert_display("led"))
+        m_ins.add_cascade(label="Display", menu=m_disp)
+        m_ins.add_separator()
+        m_ins.add_command(label="Quitar todos", command=self.clear_displays)
+        menubar.add_cascade(label="Insertar", menu=m_ins)
 
         m_help = tk.Menu(menubar, tearoff=0)
         m_help.add_command(label="Guia rapida", command=self.show_guide)
@@ -189,8 +306,20 @@ class App:
     def _build_table_area(self):
         wrap = ttk.Frame(self.root)
         wrap.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=8)
-        self.canvas = tk.Canvas(wrap, highlightthickness=0, takefocus=True)
-        vsb = ttk.Scrollbar(wrap, orient="vertical", command=self.canvas.yview)
+
+        # panel de displays a la derecha (Insertar > Display)
+        disp = ttk.LabelFrame(wrap, text="Displays", padding=4)
+        disp.pack(side=tk.RIGHT, fill=tk.Y, padx=(8, 0))
+        self._disp_hint = ttk.Label(disp, text="menu Insertar > Display",
+                                    foreground="#999", wraplength=150)
+        self._disp_hint.pack(pady=2)
+        self.disp_inner = ttk.Frame(disp)
+        self.disp_inner.pack(fill=tk.BOTH, expand=True)
+
+        left = ttk.Frame(wrap)
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.canvas = tk.Canvas(left, highlightthickness=0, takefocus=True)
+        vsb = ttk.Scrollbar(left, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -211,6 +340,43 @@ class App:
 
     def _on_wheel(self, event):
         self.canvas.yview_scroll(int(-event.delta / 120), "units")
+
+    # ---------- displays ----------
+    def insert_display(self, kind):
+        self.displays.append(DisplayWidget(self, self.disp_inner, kind))
+        self._disp_hint.pack_forget()
+        self._refresh_displays()
+
+    def clear_displays(self):
+        for d in list(self.displays):
+            d.remove()
+        self._disp_hint.pack(pady=2)
+
+    def _active_row(self):
+        if self.cursor:
+            return self.cursor[1]
+        if self.selected:
+            return min(r for _, r in self.selected)
+        return 0
+
+    def _name_values(self):
+        if not self.values:
+            return {}
+        row = self._active_row()
+        rows = len(self.values[0])
+        if row >= rows:
+            row = 0
+        return {
+            name: (1 if self.values[oi][row] == 1 else 0)
+            for oi, name in enumerate(self.output_names)
+        }
+
+    def _refresh_displays(self):
+        if not self.displays:
+            return
+        nv = self._name_values()
+        for d in self.displays:
+            d.relight(nv)
 
     def _build_bottom(self):
         frame = ttk.LabelFrame(self.root, text="Resultados", padding=6)
@@ -420,6 +586,7 @@ class App:
         except tk.TclError:
             pass
         self._rebuilding = False
+        self._refresh_displays()
 
     # ---------- seleccion ----------
     def _refresh_cell(self, oi, r):
@@ -437,6 +604,7 @@ class App:
         self.selected = set(new)
         for oi, r in diff:
             self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     def _rect(self, a, b):
         o1, r1 = a
@@ -470,6 +638,7 @@ class App:
         v = CYCLE[self.values[oi][r]]
         self.values[oi][r] = v
         self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     def apply_value(self, val):
         if not self.selected:
@@ -477,6 +646,7 @@ class App:
         for oi, r in self.selected:
             self.values[oi][r] = val
             self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     def select_all(self):
         rows = len(self.values[0]) if self.values else 0
@@ -490,6 +660,7 @@ class App:
             for r in range(len(self.values[oi])):
                 self.values[oi][r] = 0
                 self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     # ---------- portapapeles (formato Excel/TSV) ----------
     def _selection_bounds(self):
@@ -545,6 +716,7 @@ class App:
         for oi in range(k):
             for r in range(rows):
                 self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     # ---------- renombrar salida ----------
     def rename_output(self, oi):
@@ -562,6 +734,7 @@ class App:
         self.output_names[oi] = new
         self.out_headers[oi].config(text=new)
         self.expr_target["values"] = self.output_names
+        self._refresh_displays()
 
     # ---------- acciones ----------
     def _current_table(self):
@@ -594,6 +767,7 @@ class App:
             for r in range(rows):
                 self.values[oi][r] = nums[r]
                 self._refresh_cell(oi, r)
+            self._refresh_displays()
             return
 
         try:
@@ -610,6 +784,7 @@ class App:
             env = {variables[k]: (r >> (n - 1 - k)) & 1 for k in range(n)}
             self.values[oi][r] = expr.evaluate(ast, env)
             self._refresh_cell(oi, r)
+        self._refresh_displays()
 
     def show_equations(self):
         table = self._current_table()
