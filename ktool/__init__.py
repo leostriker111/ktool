@@ -4,4 +4,4 @@ Hecho para sistemas digitales: multiples salidas, elige la forma mas barata
 por compuertas, detecta terminos reutilizables y dibuja el circuito.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"

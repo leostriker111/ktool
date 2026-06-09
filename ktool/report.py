@@ -69,6 +69,21 @@ def _truth_table_html(table):
     return f"<table class='tt'><thead><tr>{ths}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
+def _table_tsv(table):
+    has_notes = any(n for n in table.notes)
+    head = ["#"] + table.variables + list(table.outputs.keys())
+    if has_notes:
+        head.append("nota")
+    lines = ["\t".join(head)]
+    for i in range(table.rows):
+        cells = [str(i)] + [str(b) for b in table.bits(i)]
+        cells += [str(table.outputs[name][i]) for name in table.outputs]
+        if has_notes:
+            cells.append(table.notes[i])
+        lines.append("\t".join(cells))
+    return "\n".join(lines)
+
+
 _GUIDE = """
 <details class="guide" open><summary>Como leer este documento</summary>
 <div class="guidebody">
@@ -89,6 +104,46 @@ componentes. Las ecuaciones salen tambien en varios lenguajes, con boton para
 copiarlas.</p>
 </div></details>
 """
+
+
+def _comparison_section(table, solutions):
+    names = list(table.outputs)
+    if not names:
+        return ""
+
+    def tot(kind):
+        g = lit = 0
+        for nm in names:
+            c = solutions[nm][kind].cost()
+            g += c[0]
+            lit += c[1]
+        return g, lit
+
+    data = [("Solo SOP", "sop"), ("Solo POS", "pos"), ("Mezcla (mejor por salida)", "best")]
+    rows = [(label, tot(kind)) for label, kind in data]
+    winner = min(rows, key=lambda r: r[1])[0]
+
+    out = [
+        "<h2>Comparativa de componentes</h2>",
+        "<p class='hint'>Suma por salida (sin contar el ahorro de las compuertas compartidas, "
+        "que se ve en el circuito combinado). Gana la estrategia con menos compuertas.</p>",
+        "<table class='shared'><thead><tr><th>Estrategia</th><th>Compuertas</th>"
+        "<th>Literales</th><th></th></tr></thead><tbody>",
+    ]
+    for label, (g, l) in rows:
+        win = label == winner
+        style = " style='background:#e9f5e9;font-weight:bold;'" if win else ""
+        out.append(f"<tr{style}><td>{_esc(label)}</td><td>{g}</td><td>{l}</td>"
+                   f"<td>{'&#9733; mejor' if win else ''}</td></tr>")
+    out.append("</tbody></table>")
+
+    det = ["<details class='guide'><summary>Ver todos los terminos (SOP y POS por salida)</summary>"
+           "<div class='guidebody'>"]
+    for nm in names:
+        det.append(f"<p><b>{_esc(nm)}</b><br>SOP: <code>{_esc(solutions[nm]['sop'].equation)}</code>"
+                   f"<br>POS: <code>{_esc(solutions[nm]['pos'].equation)}</code></p>")
+    det.append("</div></details>")
+    return "".join(out) + "".join(det)
 
 
 def _languages_section(table, solutions, opt_langs):
@@ -139,7 +194,10 @@ def build_report(table, opt=None):
     body.append(_GUIDE)
 
     if opt.table:
-        body.append("<h2>Tabla de verdad</h2>")
+        body.append(
+            "<h2>Tabla de verdad "
+            f"<button class='copybtn' data-clip=\"{_attr(_table_tsv(table))}\">copiar tabla</button></h2>"
+        )
         body.append(_truth_table_html(table))
 
     # terminos compartidos
@@ -157,6 +215,8 @@ def build_report(table, opt=None):
             body.append("</tbody></table>")
             body.append("<p class='hint'>Estas compuertas pueden compartirse entre salidas "
                         "para ahorrar componentes.</p>")
+
+    body.append(_comparison_section(table, solutions))
 
     # por salida
     for name, vals in table.outputs.items():

@@ -287,6 +287,8 @@ def build_shared_circuit(named_sops):
                 inputs.append(("gate", gi))
         out_plan.append((name, inputs, None))
 
+    rails.sort(key=lambda lit: (lit.rstrip("'"), lit.endswith("'")))
+
     rail_gap, x0, top, gate_w, or_gate_w = 26, 16, 46, 46, 46
     rail_x = {lit: x0 + i * rail_gap for i, lit in enumerate(rails)}
     rails_right = x0 + len(rails) * rail_gap + 30

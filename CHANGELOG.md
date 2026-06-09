@@ -1,5 +1,16 @@
 # Cambios
 
+## 0.2.2
+
+- GUI: las columnas se cargan con Enter o el boton Aplicar (las flechas ya no
+  redibujan en cada clic); los controles se bloquean durante el redibujo. Adios lag.
+- GUI: navegacion con flechas y Enter entre celdas; hasta 32 salidas.
+- GUI: la barra acepta numeros (b1011, h4D, d77, 0b../0x..) ademas de expresiones.
+- Documento: orden correcto de las senales de entrada en el circuito combinado.
+- Documento: boton para copiar la tabla de verdad (TSV, pega como tabla en Excel).
+- Documento: comparativa de componentes SOP vs POS vs mezcla, con detalle de
+  terminos oculto por default.
+
 ## 0.2.1
 
 - Circuito completo combinado: ruteo por columnas virtuales (los cables ya no se

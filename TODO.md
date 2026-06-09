@@ -1,5 +1,34 @@
 # Pendientes
 
+## Backlog (pedido, por construir)
+
+### Subsistema de Layout / visualizacion (grande)
+- Pestaña "Insertar" para inyectar elementos a la vista: display 7 segmentos,
+  16 segmentos, LED suelto, matriz de LEDs, semaforo, y plantillas comunes.
+- Guardar / cargar "layouts" como archivo (JSON probable).
+- La columna de **notas como puente** (dos usos):
+  1. Biblioteca de estados con nombre: si una fila tiene nota "hola" y existe un
+     estado guardado "hola", carga esos valores de salida en la fila.
+  2. Etiquetas que conectan el layout con la tabla: un segmento/LED nombrado igual
+     que una salida se enciende cuando esa salida vale 1 en el estado seleccionado.
+- Previsualizar en vivo los displays/LEDs encendiendose segun la fila/estado, para
+  cazar errores antes de fabricar.
+
+### Opciones de documento (configurables desde la GUI)
+- Elegir desde la GUI: que lenguajes incluir, ecuaciones vs tabla, mostrar/ocultar
+  comparativa y detalle.
+- HDL: emitir **ecuaciones** o **tabla de verdad** (case / with-select) en VHDL,
+  Verilog, etc.
+
+### Hecho en v0.2.2
+- GUI: cargar columnas con Enter/Aplicar + bloqueo durante el redibujo (sin lag).
+- GUI: navegacion con flechas y Enter entre celdas; hasta 32 salidas.
+- Entrada por numero (b.., h.., d.., 0b/0x) ademas de expresiones.
+- Documento: orden correcto de las senales de entrada; boton copiar tabla;
+  comparativa SOP/POS/mezcla con detalle de terminos oculto por default.
+
+
+
 ## Release 3 — Maquinas de estado (en diseño)
 
 Objetivo: que ktool reciba un diagrama / tabla de estados y entregue los pasos

@@ -52,6 +52,35 @@ def _default_name(i, k):
     return "Y" if k == 1 else f"Y{i + 1}"
 
 
+def _parse_fill_number(text, rows):
+    """Numero -> vector de 0/1 de largo 'rows' (binario de izq a der = fila 0..2^n-1).
+    Acepta 0b.., 0x.., b.., h.., d.. y decimal pelon. None si no parece numero."""
+    t = text.strip().lower().replace(" ", "")
+    if not t:
+        return None
+    if t.startswith("0b"):
+        base, digits = 2, t[2:]
+    elif t.startswith("0x"):
+        base, digits = 16, t[2:]
+    elif t.startswith("b") and len(t) > 1 and all(c in "01" for c in t[1:]):
+        base, digits = 2, t[1:]
+    elif t.startswith("h") and len(t) > 1:
+        base, digits = 16, t[1:]
+    elif t.startswith("d") and t[1:].isdigit():
+        base, digits = 10, t[1:]
+    elif t.isdigit():
+        base, digits = 10, t
+    else:
+        return None
+    try:
+        val = int(digits, base)
+    except ValueError:
+        return None
+    if val < 0 or val >= (1 << rows):
+        raise ValueError(f"el numero no cabe en {rows} bits (las filas de la tabla)")
+    return [int(c) for c in format(val, f"0{rows}b")]
+
+
 class App:
     def __init__(self, root):
         self.root = root
@@ -72,6 +101,8 @@ class App:
         self.selected = set()
         self.drag_anchor = None
         self.drag_base = set()
+        self.cursor = None               # (oi,row) celda activa para teclado
+        self._rebuilding = False
 
         self._build_menu()
         self._build_controls()
@@ -115,12 +146,16 @@ class App:
         bar.pack(side=tk.TOP, fill=tk.X)
 
         ttk.Label(bar, text="Variables:").pack(side=tk.LEFT)
-        ttk.Spinbox(bar, from_=2, to=6, width=3, textvariable=self.nvars,
-                    command=self.rebuild_table).pack(side=tk.LEFT, padx=(2, 12))
+        self.sp_vars = ttk.Spinbox(bar, from_=2, to=6, width=3, textvariable=self.nvars)
+        self.sp_vars.pack(side=tk.LEFT, padx=(2, 12))
 
         ttk.Label(bar, text="Salidas:").pack(side=tk.LEFT)
-        ttk.Spinbox(bar, from_=1, to=10, width=3, textvariable=self.nouts,
-                    command=self.rebuild_table).pack(side=tk.LEFT, padx=(2, 12))
+        self.sp_outs = ttk.Spinbox(bar, from_=1, to=32, width=3, textvariable=self.nouts)
+        self.sp_outs.pack(side=tk.LEFT, padx=(2, 6))
+        ttk.Button(bar, text="Aplicar", command=self.apply_dims).pack(side=tk.LEFT, padx=(0, 12))
+        for sp in (self.sp_vars, self.sp_outs):
+            sp.bind("<Return>", self.apply_dims)
+            sp.bind("<KP_Enter>", self.apply_dims)
 
         ttk.Checkbutton(bar, text="Notas", variable=self.notes_on,
                         command=self.rebuild_table).pack(side=tk.LEFT, padx=(0, 12))
@@ -143,11 +178,12 @@ class App:
         self.expr_entry = ttk.Entry(bar2, width=40)
         self.expr_entry.pack(side=tk.LEFT, padx=4)
         self.expr_entry.insert(0, "A'B + C")
+        self.expr_entry.bind("<Return>", lambda e: self.fill_from_expr())
         ttk.Label(bar2, text="-> salida:").pack(side=tk.LEFT)
         self.expr_target = ttk.Combobox(bar2, width=5, state="readonly")
         self.expr_target.pack(side=tk.LEFT, padx=4)
         ttk.Button(bar2, text="Evaluar y llenar", command=self.fill_from_expr).pack(side=tk.LEFT)
-        ttk.Label(bar2, text="   selecciona arrastrando | 1/0/x cambian | Ctrl+C/V/X | clic en encabezado renombra",
+        ttk.Label(bar2, text="   expresion (A'B+C) o numero (b1011, h4D, d77) | flechas y Enter navegan | Enter en Salidas aplica",
                   foreground="#777").pack(side=tk.LEFT, padx=8)
 
     def _build_table_area(self):
@@ -195,6 +231,74 @@ class App:
         r.bind("<Control-a>", lambda e: self._guarded(self.select_all))
         r.bind("<Control-A>", lambda e: self._guarded(self.select_all))
         r.bind("<Escape>", lambda e: self.clear_selection())
+        for sym in ("Up", "Down", "Left", "Right"):
+            r.bind(f"<{sym}>", self._on_arrow)
+        r.bind("<Return>", self._on_enter)
+        r.bind("<KP_Enter>", self._on_enter)
+
+    # ---------- navegacion con teclado ----------
+    def _dims(self):
+        rows = len(self.values[0]) if self.values else 0
+        return len(self.values), rows  # (columnas, filas)
+
+    def _move_to(self, oi, row):
+        k, rows = self._dims()
+        if k == 0 or rows == 0:
+            return
+        oi = max(0, min(k - 1, oi))
+        row = max(0, min(rows - 1, row))
+        self.cursor = (oi, row)
+        self._set_selection({(oi, row)})
+        self.canvas.focus_set()
+        self._ensure_visible(oi, row)
+
+    def _on_arrow(self, event):
+        if self._entry_focused():
+            return
+        d = {"Up": (0, -1), "Down": (0, 1), "Left": (-1, 0), "Right": (1, 0)}[event.keysym]
+        base = self.cursor or (0, 0)
+        self._move_to(base[0] + d[0], base[1] + d[1])
+        return "break"
+
+    def _on_enter(self, event):
+        if self._entry_focused():
+            return
+        k, rows = self._dims()
+        if not k or not rows:
+            return
+        if self.cursor is None:
+            self._move_to(0, 0)
+            return
+        oi, row = self.cursor
+        row += 1
+        if row >= rows:           # bajo de columna -> tope de la siguiente
+            row, oi = 0, oi + 1
+        if oi >= k:               # ya no hay columnas -> deselecciona
+            self.cursor = None
+            self.clear_selection()
+        else:
+            self._move_to(oi, row)
+        return "break"
+
+    def _ensure_visible(self, oi, row):
+        w = self.cell_widget.get((oi, row))
+        if not w:
+            return
+        self.table_frame.update_idletasks()
+        total = self.table_frame.winfo_height() or 1
+        cy, ch = w.winfo_y(), w.winfo_height()
+        top = self.canvas.canvasy(0)
+        view = self.canvas.winfo_height()
+        if cy < top:
+            self.canvas.yview_moveto(cy / total)
+        elif cy + ch > top + view:
+            self.canvas.yview_moveto(max(0, (cy + ch - view)) / total)
+
+    def apply_dims(self, event=None):
+        if self._rebuilding:
+            return "break"
+        self.rebuild_table()
+        return "break"
 
     # ---------- foco / teclas ----------
     def _entry_focused(self):
@@ -228,12 +332,21 @@ class App:
     def rebuild_table(self):
         try:
             n = max(2, min(6, int(self.nvars.get())))
-            k = max(1, min(10, int(self.nouts.get())))
+            k = max(1, min(32, int(self.nouts.get())))
         except (tk.TclError, ValueError):
             return
+        self._rebuilding = True
+        self.sp_vars.config(state="disabled")
+        self.sp_outs.config(state="disabled")
+        try:
+            self.root.config(cursor="watch")
+            self.root.update_idletasks()
+        except tk.TclError:
+            pass
         rows = 1 << n
         variables = default_vars(n)
         self._sync_names(k)
+        self.cursor = None
 
         old = self.values
         self.values = []
@@ -300,6 +413,14 @@ class App:
         self.expr_target["values"] = self.output_names
         self.expr_target.current(0)
 
+        self.sp_vars.config(state="normal")
+        self.sp_outs.config(state="normal")
+        try:
+            self.root.config(cursor="")
+        except tk.TclError:
+            pass
+        self._rebuilding = False
+
     # ---------- seleccion ----------
     def _refresh_cell(self, oi, r):
         w = self.cell_widget.get((oi, r))
@@ -329,6 +450,7 @@ class App:
     def on_press(self, oi, r, shift):
         self.canvas.focus_set()
         self.drag_anchor = (oi, r)
+        self.cursor = (oi, r)
         if shift:
             self.drag_base = set(self.selected)
             self._set_selection(self.selected | {(oi, r)})
@@ -458,6 +580,22 @@ class App:
             return
         n = max(2, min(6, int(self.nvars.get())))
         variables = default_vars(n)
+        rows = 1 << n
+        target = self.expr_target.get()
+        oi = self.output_names.index(target)
+
+        # numero (b.. binario, h.. hex, d.. decimal, 0b/0x, o decimal pelon)
+        try:
+            nums = _parse_fill_number(text, rows)
+        except ValueError as e:
+            messagebox.showerror("Numero invalido", str(e))
+            return
+        if nums is not None:
+            for r in range(rows):
+                self.values[oi][r] = nums[r]
+                self._refresh_cell(oi, r)
+            return
+
         try:
             ast = expr.parse(text)
             used = set()
@@ -466,11 +604,8 @@ class App:
             if unknown:
                 raise ValueError(f"variables fuera de A..{variables[-1]}: {', '.join(sorted(unknown))}")
         except Exception as e:
-            messagebox.showerror("Expresion invalida", str(e))
+            messagebox.showerror("Entrada invalida", str(e))
             return
-        target = self.expr_target.get()
-        oi = self.output_names.index(target)
-        rows = 1 << n
         for r in range(rows):
             env = {variables[k]: (r >> (n - 1 - k)) & 1 for k in range(n)}
             self.values[oi][r] = expr.evaluate(ast, env)
