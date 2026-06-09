@@ -1,0 +1,161 @@
+"""Tabla de verdad, layout de K-map y utilidades de bases numericas."""
+
+from __future__ import annotations
+
+DC = "x"  # don't care
+
+VAR_NAMES = ["A", "B", "C", "D", "E", "F"]
+
+
+def default_vars(n):
+    return VAR_NAMES[:n]
+
+
+def parse_value(tok):
+    """0 / 1 / x (don't care). Devuelve 0, 1 o 'x'."""
+    t = str(tok).strip().lower()
+    if t in ("x", "-", "d", "dc"):
+        return DC
+    if t in ("0", "1"):
+        return int(t)
+    raise ValueError(f"valor de salida invalido: {tok!r} (usa 0, 1 o x)")
+
+
+def parse_int_token(tok):
+    """Acepta decimal, 0x.. hex, 0b.. bin, 0o.. octal."""
+    t = str(tok).strip()
+    return int(t, 0)
+
+
+def parse_index_list(text):
+    """'1,3,5' o '0x1 0b11 5' -> lista de ints."""
+    if not text:
+        return []
+    raw = text.replace(",", " ").split()
+    return [parse_int_token(t) for t in raw]
+
+
+def parse_truth_string(s):
+    """'01x101..' -> lista de 0/1/'x'. Tambien admite separadores."""
+    s = "".join(c for c in str(s) if not c.isspace())
+    return [parse_value(c) for c in s]
+
+
+class TruthTable:
+    """n variables, 2^n filas, una o varias salidas, columna de notas opcional."""
+
+    def __init__(self, nvars, variables=None, outputs=None, notes=None):
+        self.nvars = nvars
+        self.rows = 1 << nvars
+        self.variables = list(variables) if variables else default_vars(nvars)
+        # outputs: dict nombre -> lista de 0/1/'x' (largo = rows)
+        self.outputs = {}
+        if outputs:
+            for name, vals in outputs.items():
+                self.set_output(name, vals)
+        self.notes = list(notes) if notes else [""] * self.rows
+
+    # -- construccion --
+    def set_output(self, name, values):
+        vals = [parse_value(v) for v in values]
+        if len(vals) != self.rows:
+            raise ValueError(
+                f"la salida {name!r} tiene {len(vals)} valores, se esperaban {self.rows}"
+            )
+        self.outputs[name] = vals
+
+    @classmethod
+    def from_minterms(cls, nvars, minterms, dontcares=None, name="Y", variables=None):
+        vals = [0] * (1 << nvars)
+        for m in minterms:
+            vals[m] = 1
+        for d in dontcares or []:
+            vals[d] = DC
+        return cls(nvars, variables, {name: vals})
+
+    @classmethod
+    def from_expression(cls, expr_text, nvars=None, name="Y"):
+        from .expr import build_output
+
+        variables, vals = build_output(expr_text, nvars)
+        return cls(len(variables), variables, {name: vals})
+
+    # -- consultas por salida --
+    def minterms(self, name):
+        return [i for i, v in enumerate(self.outputs[name]) if v == 1]
+
+    def maxterms(self, name):
+        return [i for i, v in enumerate(self.outputs[name]) if v == 0]
+
+    def dontcares(self, name):
+        return [i for i, v in enumerate(self.outputs[name]) if v == DC]
+
+    def bits(self, index):
+        """Bits de las variables para una fila (MSB = variables[0])."""
+        return [(index >> (self.nvars - 1 - k)) & 1 for k in range(self.nvars)]
+
+
+# ---------- layout de K-map ----------
+
+# como se parten las variables en filas / columnas del mapa
+_SPLITS = {
+    2: ([0], [1]),
+    3: ([0], [1, 2]),
+    4: ([0, 1], [2, 3]),
+    5: ([0, 1], [2, 3, 4]),
+    6: ([0, 1, 2], [3, 4, 5]),
+}
+
+
+def gray(i):
+    return i ^ (i >> 1)
+
+
+def kmap_layout(nvars):
+    """Devuelve (row_vars, col_vars, n_rows, n_cols)."""
+    row_vars, col_vars = _SPLITS[nvars]
+    return row_vars, col_vars, 1 << len(row_vars), 1 << len(col_vars)
+
+
+def _group_bits(gray_code, var_positions, nvars):
+    """Para un codigo gray de un grupo (fila o columna), regresa
+    {posicion_variable_global: bit}."""
+    k = len(var_positions)
+    out = {}
+    for idx, vpos in enumerate(var_positions):
+        bit = (gray_code >> (k - 1 - idx)) & 1
+        out[vpos] = bit
+    return out
+
+
+def cell_index(row, col, nvars):
+    """minterm que cae en la celda (row, col) del K-map."""
+    row_vars, col_vars, _, _ = kmap_layout(nvars)
+    assign = {}
+    assign.update(_group_bits(gray(row), row_vars, nvars))
+    assign.update(_group_bits(gray(col), col_vars, nvars))
+    value = 0
+    for vpos, bit in assign.items():
+        if bit:
+            value |= 1 << (nvars - 1 - vpos)
+    return value
+
+
+def pattern_matches_row(pattern, row, nvars):
+    row_vars, _, _, _ = kmap_layout(nvars)
+    bits = _group_bits(gray(row), row_vars, nvars)
+    for vpos, bit in bits.items():
+        c = pattern[vpos]
+        if c != "-" and int(c) != bit:
+            return False
+    return True
+
+
+def pattern_matches_col(pattern, col, nvars):
+    _, col_vars, _, _ = kmap_layout(nvars)
+    bits = _group_bits(gray(col), col_vars, nvars)
+    for vpos, bit in bits.items():
+        c = pattern[vpos]
+        if c != "-" and int(c) != bit:
+            return False
+    return True

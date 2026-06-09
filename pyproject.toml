@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ktool"
+version = "0.1.0"
+description = "Simplificador de logica digital: mapas de Karnaugh, SOP/POS, compuertas y reuso de terminos"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "Leostriker" }]
+keywords = ["karnaugh", "kmap", "boolean", "logic", "sop", "pos", "quine-mccluskey", "digital"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Electronic Design Automation (EDA)",
+  "Intended Audience :: Education",
+]
+
+[project.urls]
+Homepage = "https://github.com/leostriker111/ktool"
+Issues = "https://github.com/leostriker111/ktool/issues"
+
+[project.scripts]
+kmap = "ktool.cli:main"
+ktool = "ktool.cli:main"
+
+[tool.setuptools]
+packages = ["ktool"]
