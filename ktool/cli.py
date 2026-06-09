@@ -14,10 +14,29 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import core
+from . import core, langs
 from .core import TruthTable
 from .report import Options, build_report, save_report
 from .simplify import solve_output, shared_terms
+
+_LANG_ALIASES = {"math": "Matematico", "matematicas": "Matematico", "mate": "Matematico",
+                 "py": "Python", "tex": "LaTeX"}
+
+
+def _resolve_langs(args):
+    if args.no_langs:
+        return []
+    if not args.langs:
+        return None
+    canon = {name.lower(): name for name in langs.LANG_ORDER}
+    out = []
+    for tok in args.langs.replace(",", " ").split():
+        name = canon.get(tok.lower()) or _LANG_ALIASES.get(tok.lower())
+        if not name:
+            print(f"aviso: lenguaje desconocido '{tok}' (ignorado)")
+        elif name not in out:
+            out.append(name)
+    return out
 
 
 def _build_parser():
@@ -45,6 +64,8 @@ def _build_parser():
     p.add_argument("--no-circuit", action="store_true", help="no incluir circuitos")
     p.add_argument("--no-table", action="store_true", help="no incluir tabla de verdad")
     p.add_argument("--gates-only", action="store_true", help="solo compuertas (sin K-map ni tabla)")
+    p.add_argument("--langs", help="lenguajes a incluir, separados por coma (ej: verilog,c,vhdl)")
+    p.add_argument("--no-langs", action="store_true", help="no incluir el bloque de ecuaciones por lenguaje")
     p.add_argument("--text", action="store_true", help="solo imprimir ecuaciones en la terminal")
     p.add_argument("--out", help="ruta del documento HTML a generar")
     p.add_argument("--open", action="store_true", help="abrir el documento en el navegador")
@@ -117,6 +138,7 @@ def main(argv=None):
         circuit=not args.no_circuit,
         table=not args.no_table,
         title=args.title,
+        langs=_resolve_langs(args),
     )
     html = build_report(table, opt)
     open_it = args.open or (args.out is None)

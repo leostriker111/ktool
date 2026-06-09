@@ -1,5 +1,15 @@
 # Cambios
 
+## 0.2.1
+
+- Circuito completo combinado: ruteo por columnas virtuales (los cables ya no se
+  enciman), cada cable en su color y un punto en cada derivacion.
+- Interfaz: clic en zona vacia de la tabla deselecciona.
+- Documento: las ecuaciones por lenguaje van al final, agrupadas por lenguaje, con un
+  boton para copiar el bloque completo de cada lenguaje.
+- CLI: `--langs verilog,c,vhdl` para elegir lenguajes y `--no-langs` para omitirlos.
+- C usa `bool` (stdbool.h) en lugar de `int`.
+
 ## 0.2.0
 
 - Interfaz: seleccion multiple de celdas (arrastrando o con Shift), resaltadas en

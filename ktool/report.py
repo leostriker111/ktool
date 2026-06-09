@@ -29,6 +29,7 @@ class Options:
         table=True,
         shared=True,
         title="Resultados ktool",
+        langs=None,         # None = todos; [] = ninguno; lista = solo esos
     ):
         self.form = form
         self.kmap = kmap
@@ -36,6 +37,7 @@ class Options:
         self.table = table
         self.shared = shared
         self.title = title
+        self.langs = langs
 
 
 def _forms_to_show(opt, best):
@@ -89,21 +91,26 @@ copiarlas.</p>
 """
 
 
-def _languages_block(name, sol):
-    rows = []
-    blob = []
-    for lang, code in langs.render_all(sol, name):
-        blob.append(f"// {lang}\n{code}")
-        rows.append(
-            f"<tr><td class='lname'>{_esc(lang)}</td>"
-            f"<td><code>{_esc(code)}</code></td>"
-            f"<td><button class='copybtn' data-clip=\"{_attr(code)}\">copiar</button></td></tr>"
+def _languages_section(table, solutions, opt_langs):
+    """Bloque por lenguaje con TODAS las salidas juntas (un copiar por lenguaje)."""
+    if opt_langs is not None and len(opt_langs) == 0:
+        return ""
+    chosen = opt_langs or langs.LANG_ORDER
+    parts = ["<h2>Ecuaciones en varios lenguajes</h2>",
+             "<p class='hint'>Cada bloque trae todas las salidas en ese lenguaje; el boton copia el bloque completo.</p>"]
+    for lang in chosen:
+        if lang not in langs.SPECS:
+            continue
+        lines = [langs.render(solutions[name]["best"], name, lang) for name in table.outputs]
+        blob = "\n".join(lines)
+        parts.append("<div class='langblock'>")
+        parts.append(
+            f"<div class='langhead'>{_esc(lang)} "
+            f"<button class='copybtn' data-clip=\"{_attr(blob)}\">copiar {_esc(lang)}</button></div>"
         )
-    head = (
-        "<div class='langhead'>Ecuaciones en varios lenguajes "
-        f"<button class='copybtn' data-clip=\"{_attr(chr(10).join(blob))}\">copiar todo</button></div>"
-    )
-    return head + "<table class='langs'><tbody>" + "".join(rows) + "</tbody></table>"
+        parts.append(f"<pre class='langpre'>{_esc(blob)}</pre>")
+        parts.append("</div>")
+    return "".join(parts)
 
 
 def _kmap_for_form(vals, variables, sol, form):
@@ -208,7 +215,6 @@ def build_report(table, opt=None):
                 body.append("</div>")
             body.append("</div>")
 
-        body.append(_languages_block(name, sol["best"]))
         body.append("</div>")  # outcard
 
     # circuito completo combinado (SOP con compuertas compartidas)
@@ -231,6 +237,8 @@ def build_report(table, opt=None):
                 )
             body.append("</tbody></table>")
         body.append("<div class='cwrap' style='overflow-x:auto;'>" + svg + "</div>")
+
+    body.append(_languages_section(table, solutions, opt.langs))
 
     return _wrap_html(opt.title, "\n".join(body))
 
@@ -262,9 +270,11 @@ table{border-collapse:collapse;margin:8px 0;}
 .guide summary{font-weight:bold;cursor:pointer;}
 .guidebody{font-size:13px;line-height:1.6;}
 .guidebody .dc{background:#fff3cd;color:#b8860b;padding:0 3px;border-radius:3px;}
-.langhead{font-weight:bold;font-size:13px;margin:10px 0 4px;}
-.langs td{border:1px solid #e0e0e0;padding:3px 8px;font-size:13px;}
-.langs .lname{color:#555;font-weight:bold;white-space:nowrap;}
+.langhead{font-weight:bold;font-size:14px;margin:12px 0 4px;display:flex;
+  align-items:center;gap:10px;}
+.langblock{margin:6px 0 14px;}
+.langpre{background:#f6f6f6;border:1px solid #ddd;border-radius:5px;padding:9px 11px;
+  font-family:Consolas,monospace;font-size:13px;white-space:pre;overflow-x:auto;margin:0;}
 .copybtn{font-size:11px;border:1px solid #aaa;background:#f3f3f3;border-radius:4px;
   padding:2px 8px;cursor:pointer;}
 .copybtn:hover{background:#e2e8f5;}

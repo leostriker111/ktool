@@ -76,7 +76,7 @@ SPECS = {
         "xor": " ^ ",
         "inv": lambda b: "!(" + b + ")",
         "const": {0: "0", 1: "1"},
-        "assign": lambda n, r: f"int {n} = {r};",
+        "assign": lambda n, r: f"bool {n} = {r};",
     },
     "Python": {
         "var": lambda v, c: "not " + v if c else v,

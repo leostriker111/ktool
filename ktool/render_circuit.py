@@ -9,6 +9,13 @@ def _esc(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;")
 
 
+WIRE_COLORS = [
+    "#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e",
+    "#17becf", "#8c564b", "#e377c2", "#bcbd22", "#393b79",
+    "#637939", "#8c6d31", "#843c39", "#7b4173", "#5254a3",
+]
+
+
 def _and_path(x, y, w, h):
     r = h / 2
     return (
@@ -280,7 +287,7 @@ def build_shared_circuit(named_sops):
                 inputs.append(("gate", gi))
         out_plan.append((name, inputs, None))
 
-    rail_gap, x0, top, gate_w = 26, 16, 46, 46
+    rail_gap, x0, top, gate_w, or_gate_w = 26, 16, 46, 46, 46
     rail_x = {lit: x0 + i * rail_gap for i, lit in enumerate(rails)}
     rails_right = x0 + len(rails) * rail_gap + 30
 
@@ -292,9 +299,8 @@ def build_shared_circuit(named_sops):
         y += gh + 18
     and_bottom = y
     and_out_x = rails_right + gate_w
+    and_cy = [gy + gh / 2 for (gx, gy, gh) in and_pos]
 
-    x_or = and_out_x + 130
-    or_gate_w = 46
     slots = []
     oy = top
     for name, inputs, const in out_plan:
@@ -308,11 +314,59 @@ def build_shared_circuit(named_sops):
             h = max(28, len(inputs) * 15)
             slots.append({"name": name, "kind": "or", "y": oy, "h": h, "inputs": inputs})
             oy += h + 22
-    out_bottom = oy
+    base_bottom = max(and_bottom, oy)
+
+    # un "net" por fuente (compuerta AND o literal); cada uno toma un canal vertical propio
+    nets = {}
+    for si, slot in enumerate(slots):
+        if slot["kind"] == "const":
+            continue
+        if slot["kind"] == "direct":
+            inp = slot["inputs"][0]
+            nets.setdefault(inp, {"targets": []})["targets"].append((slot["y"] + 12, "direct"))
+        else:
+            ninp = len(slot["inputs"])
+            for k, inp in enumerate(slot["inputs"]):
+                ty = slot["y"] + slot["h"] * (k + 1) / (ninp + 1)
+                nets.setdefault(inp, {"targets": []})["targets"].append((ty, "or"))
+
+    def _net_key(item):
+        key = item[0]
+        return (0, key[1]) if key[0] == "gate" else (1, rails.index(key[1]))
+
+    net_items = sorted(nets.items(), key=_net_key)
+
+    # carriles inferiores para los nets de un solo literal (no cruzan las AND)
+    lane = {key: i for i, (key, _) in enumerate(k for k in net_items if k[0][0] == "lit")}
+    lane_base = base_bottom + 10
+    bottom_channel = lane_base + max(0, len(lane)) * 8 + 8
+
+    def src_y_of(key):
+        return and_cy[key[1]] if key[0] == "gate" else lane_base + lane[key] * 8
+
+    # asignar columnas virtuales: si una ya tiene un vertical que solapa en Y, usa la siguiente
+    tracks = []
+    track_of = []
+    for key, net in net_items:
+        ys = [t[0] for t in net["targets"]] + [src_y_of(key)]
+        a, b = min(ys), max(ys)
+        net["span"] = (a, b)
+        placed = None
+        for ti, occ in enumerate(tracks):
+            if all(b < oa - 2 or a > ob + 2 for oa, ob in occ):
+                occ.append((a, b))
+                placed = ti
+                break
+        if placed is None:
+            tracks.append([(a, b)])
+            placed = len(tracks) - 1
+        track_of.append(placed)
+
+    chan_x0, chan_step = and_out_x + 22, 16
+    x_or = chan_x0 + len(tracks) * chan_step + 22
     x_out = x_or + or_gate_w + 80
-    height = max(and_bottom, out_bottom) + 26
-    width = x_out + 90
-    bottom_channel = height - 14
+    height = bottom_channel + 16
+    width = x_out + 110
 
     s = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
@@ -323,7 +377,6 @@ def build_shared_circuit(named_sops):
         s.append(f'<line x1="{x}" y1="34" x2="{x}" y2="{bottom_channel}" stroke="#bbb" stroke-width="1"/>')
         s.append(f'<text x="{x}" y="26" font-size="13" text-anchor="middle">{_esc(lit)}</text>')
 
-    and_out_pts = []
     for gi, (gx, gy, gh) in enumerate(and_pos):
         lits = gate_terms[gi]["lits"]
         s.append(f'<path d="{_and_path(gx, gy, gate_w, gh)}" fill="#222" stroke="#000"/>')
@@ -334,41 +387,46 @@ def build_shared_circuit(named_sops):
             rx = rail_x[lit]
             s.append(f'<circle cx="{rx}" cy="{iy}" r="3" fill="#000"/>')
             s.append(f'<line x1="{rx}" y1="{iy}" x2="{gx}" y2="{iy}" stroke="#000" stroke-width="1.4"/>')
-        and_out_pts.append((and_out_x, gy + gh / 2))
 
-    def route(inp, tx, ty, k):
-        ch = tx - 22 - k * 7
-        if inp[0] == "gate":
-            sx, sy = and_out_pts[inp[1]]
-            s.append(f'<circle cx="{sx}" cy="{sy}" r="2.5" fill="#000"/>')
-            s.append(f'<line x1="{sx}" y1="{sy}" x2="{ch}" y2="{sy}" stroke="#000" stroke-width="1.4"/>')
-            s.append(f'<line x1="{ch}" y1="{sy}" x2="{ch}" y2="{ty}" stroke="#000" stroke-width="1.4"/>')
-            s.append(f'<line x1="{ch}" y1="{ty}" x2="{tx}" y2="{ty}" stroke="#000" stroke-width="1.4"/>')
+    def dot(x, yy, color="#000", r=3):
+        s.append(f'<circle cx="{x:.0f}" cy="{yy:.1f}" r="{r}" fill="{color}"/>')
+
+    def wire(x1, y1, x2, y2, color):
+        s.append(f'<line x1="{x1:.0f}" y1="{y1:.1f}" x2="{x2:.0f}" y2="{y2:.1f}" stroke="{color}" stroke-width="1.6"/>')
+
+    for ni, (key, net) in enumerate(net_items):
+        color = WIRE_COLORS[ni % len(WIRE_COLORS)]
+        cx = chan_x0 + track_of[ni] * chan_step
+        ymin, ymax = net["span"]
+        sy = src_y_of(key)
+        if key[0] == "gate":
+            wire(and_out_x, sy, cx, sy, color)
+            dot(and_out_x, sy)
         else:
-            rx = rail_x[inp[1]]
-            s.append(f'<circle cx="{rx}" cy="{bottom_channel}" r="2.5" fill="#000"/>')
-            s.append(f'<line x1="{rx}" y1="{bottom_channel}" x2="{ch}" y2="{bottom_channel}" stroke="#000" stroke-width="1.4"/>')
-            s.append(f'<line x1="{ch}" y1="{bottom_channel}" x2="{ch}" y2="{ty}" stroke="#000" stroke-width="1.4"/>')
-            s.append(f'<line x1="{ch}" y1="{ty}" x2="{tx}" y2="{ty}" stroke="#000" stroke-width="1.4"/>')
+            rx = rail_x[key[1]]
+            dot(rx, sy)
+            wire(rx, sy, cx, sy, color)
+        s.append(f'<line x1="{cx}" y1="{ymin:.1f}" x2="{cx}" y2="{ymax:.1f}" stroke="{color}" stroke-width="1.6"/>')
+        chan_ys = [sy]
+        for ty, kind in net["targets"]:
+            tx = x_or if kind == "or" else x_out
+            wire(cx, ty, tx, ty, color)
+            chan_ys.append(ty)
+        for cyp in chan_ys:
+            if ymin < cyp < ymax:
+                dot(cx, cyp)
 
     for slot in slots:
-        name, y, h = slot["name"], slot["y"], slot["h"]
+        name, yy, h = slot["name"], slot["y"], slot["h"]
         if slot["kind"] == "const":
-            s.append(f'<text x="{x_out - 30}" y="{y + 16}" font-size="14">{_esc(name)} = {slot["const"]}</text>')
-            continue
-        if slot["kind"] == "or":
-            cy = y + h / 2
-            s.append(f'<path d="{_or_path(x_or, y, or_gate_w, h)}" fill="#222" stroke="#000"/>')
-            ninp = len(slot["inputs"])
-            for k, inp in enumerate(slot["inputs"]):
-                iy = y + h * (k + 1) / (ninp + 1)
-                route(inp, x_or, iy, k)
+            s.append(f'<text x="{x_out - 30}" y="{yy + 16}" font-size="14">{_esc(name)} = {slot["const"]}</text>')
+        elif slot["kind"] == "or":
+            cy = yy + h / 2
+            s.append(f'<path d="{_or_path(x_or, yy, or_gate_w, h)}" fill="#222" stroke="#000"/>')
             s.append(f'<line x1="{x_or + or_gate_w}" y1="{cy}" x2="{x_out}" y2="{cy}" stroke="#000" stroke-width="1.5"/>')
             s.append(f'<text x="{x_out + 6}" y="{cy + 5}" font-size="15">{_esc(name)}</text>')
         else:  # direct
-            cy = y + 12
-            route(slot["inputs"][0], x_out, cy, 0)
-            s.append(f'<text x="{x_out + 6}" y="{cy + 5}" font-size="15">{_esc(name)}</text>')
+            s.append(f'<text x="{x_out + 6}" y="{yy + 17}" font-size="15">{_esc(name)}</text>')
 
     s.append("</svg>")
     gates = [

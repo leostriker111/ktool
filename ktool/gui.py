@@ -165,6 +165,13 @@ class App:
             lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")),
         )
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
+        # clic en zona muerta (fuera de las celdas) -> deselecciona
+        self.canvas.bind("<Button-1>", lambda e: self._dead_click())
+        self.table_frame.bind("<Button-1>", lambda e: self._dead_click())
+
+    def _dead_click(self):
+        self.canvas.focus_set()
+        self.clear_selection()
 
     def _on_wheel(self, event):
         self.canvas.yview_scroll(int(-event.delta / 120), "units")
