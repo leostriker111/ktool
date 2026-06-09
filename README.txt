@@ -20,10 +20,13 @@ QUE HACE
 - Minimizacion exacta con Quine-McCluskey (maneja don't cares).
 - Entrega SOP y POS al mismo tiempo, con el costo de cada forma.
 - Elige automaticamente la forma mas conveniente por compuertas y literales.
-- Detecta cuando la funcion es un XOR/XNOR de un subconjunto de variables.
+- Considera XOR/XNOR como un camino mas y lo elige si es la realizacion mas barata.
 - Encuentra terminos reutilizables entre salidas (compuertas compartidas).
 - Genera un mapa de Karnaugh con los grupos circulados en colores.
-- Dibuja el circuito (rieles de literales + compuertas) en SVG.
+- Dibuja el circuito por salida y un circuito completo combinado con las compuertas
+  compartidas entre todas las salidas.
+- Exporta las ecuaciones a Verilog, VHDL, ABEL, Logisim, C, Python y LaTeX, con boton
+  para copiar al portapapeles.
 - Construye la tabla a partir de una expresion booleana evaluando los 2^n casos.
 - Acepta minterminos en decimal, hexadecimal (0x) o binario (0b).
 - Todo en Python puro, sin dependencias externas.
@@ -105,11 +108,21 @@ INTERFAZ GRAFICA
 
   kmap gui
 
-Tabla al estilo de un solucionador clasico: cada celda de salida cicla
-0 -> 1 -> x al hacer clic. Arriba eliges el numero de variables y de salidas,
-activas la columna de notas y la forma (SOP, POS, auto o ambas). La barra de
-expresion llena una columna evaluando lo que escribas. El boton Ecuaciones
+Tabla al estilo de un solucionador clasico. Arriba eliges el numero de variables y
+de salidas, activas la columna de notas y la forma (SOP, POS, auto o ambas). La
+barra de expresion llena una columna evaluando lo que escribas. El boton Ecuaciones
 muestra el resultado en el panel inferior y Generar documento arma el HTML.
+
+Para llenar la tabla rapido:
+
+- Selecciona varias celdas arrastrando con el raton (o Shift+clic para agregar);
+  quedan resaltadas en azul.
+- Con la seleccion hecha, las teclas 1, 0 y x cambian todas a la vez.
+- Doble clic cicla una sola celda 0 -> 1 -> x.
+- Ctrl+C / Ctrl+V / Ctrl+X copian, pegan y cortan en formato compatible con Excel.
+- Clic en el encabezado de una salida para renombrarla.
+
+El menu Ayuda tiene la guia rapida, la lista de atajos y el enlace al repositorio.
 
 
 SALIDA

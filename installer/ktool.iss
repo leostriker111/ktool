@@ -2,7 +2,7 @@
 ; (dist\kmap.exe) y lo instala por usuario, agregandolo al PATH.
 
 #define MyAppName "ktool"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Leostriker"
 #define MyAppURL "https://github.com/leostriker111/ktool"
 

@@ -7,13 +7,17 @@ import tempfile
 import webbrowser
 
 from .simplify import solve_output, shared_terms
-from . import render_kmap, render_circuit
+from . import render_kmap, render_circuit, langs
 
 
 def _esc(s):
     return (
         str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     )
+
+
+def _attr(s):
+    return _esc(s).replace('"', "&quot;").replace("\n", "&#10;")
 
 
 class Options:
@@ -63,6 +67,56 @@ def _truth_table_html(table):
     return f"<table class='tt'><thead><tr>{ths}</tr></thead><tbody>{''.join(rows)}</tbody></table>"
 
 
+_GUIDE = """
+<details class="guide" open><summary>Como leer este documento</summary>
+<div class="guidebody">
+<p>Cada <b>salida</b> se minimiza por separado con el metodo de Quine-McCluskey
+(exacto, maneja don't cares). Se calculan tres caminos y se elige el mas barato
+por numero de compuertas:</p>
+<ul>
+<li><b>SOP</b> (suma de productos): compuertas AND hacia una OR.</li>
+<li><b>POS</b> (producto de sumas): compuertas OR hacia una AND.</li>
+<li><b>XOR/XNOR</b>: cuando la funcion es la paridad de un grupo de variables,
+suele ser la realizacion mas economica.</li>
+</ul>
+<p>En el <b>mapa de Karnaugh</b> cada grupo va en un color y su termino aparece en
+la leyenda. Las celdas <span class="dc">amarillas</span> son don't cares.
+La seccion <b>Terminos reutilizables</b> y el <b>Circuito completo sugerido</b>
+muestran las compuertas que pueden compartirse entre salidas para ahorrar
+componentes. Las ecuaciones salen tambien en varios lenguajes, con boton para
+copiarlas.</p>
+</div></details>
+"""
+
+
+def _languages_block(name, sol):
+    rows = []
+    blob = []
+    for lang, code in langs.render_all(sol, name):
+        blob.append(f"// {lang}\n{code}")
+        rows.append(
+            f"<tr><td class='lname'>{_esc(lang)}</td>"
+            f"<td><code>{_esc(code)}</code></td>"
+            f"<td><button class='copybtn' data-clip=\"{_attr(code)}\">copiar</button></td></tr>"
+        )
+    head = (
+        "<div class='langhead'>Ecuaciones en varios lenguajes "
+        f"<button class='copybtn' data-clip=\"{_attr(chr(10).join(blob))}\">copiar todo</button></div>"
+    )
+    return head + "<table class='langs'><tbody>" + "".join(rows) + "</tbody></table>"
+
+
+def _kmap_for_form(vals, variables, sol, form):
+    """Devuelve (label, patterns, form_real). XOR no agrupa: usa el SOP."""
+    if form == "xor":
+        s = sol["sop"]
+        pats = s.patterns if s.const is None else []
+        return "K-map (agrupado en SOP)", pats, "sop"
+    s = sol[form]
+    pats = s.patterns if s.const is None else []
+    return f"K-map {form.upper()}", pats, form
+
+
 def build_report(table, opt=None):
     opt = opt or Options()
     solutions = {
@@ -75,6 +129,7 @@ def build_report(table, opt=None):
         f"<p class='meta'>{table.nvars} variables "
         f"({', '.join(table.variables)}) &middot; {len(table.outputs)} salida(s)</p>"
     )
+    body.append(_GUIDE)
 
     if opt.table:
         body.append("<h2>Tabla de verdad</h2>")
@@ -82,21 +137,19 @@ def build_report(table, opt=None):
 
     # terminos compartidos
     if opt.shared and len(table.outputs) > 1:
-        for form in (["sop", "pos"] if opt.form == "both" else
-                     [opt.form if opt.form in ("sop", "pos") else "sop"]):
-            sh = shared_terms(solutions, table.variables, form)
-            if sh:
-                body.append(f"<h2>Terminos reutilizables ({form.upper()})</h2>")
-                body.append("<table class='shared'><thead><tr>"
-                            "<th>Termino (compuerta)</th><th>Usado en</th></tr></thead><tbody>")
-                for d in sh:
-                    body.append(
-                        f"<tr><td><code>{_esc(d['term'])}</code></td>"
-                        f"<td>{', '.join(map(_esc, d['outputs']))}</td></tr>"
-                    )
-                body.append("</tbody></table>")
-                body.append("<p class='hint'>Estas compuertas pueden compartirse entre salidas "
-                            "para ahorrar componentes.</p>")
+        sh = shared_terms(solutions, table.variables, "sop")
+        if sh:
+            body.append("<h2>Terminos reutilizables (SOP)</h2>")
+            body.append("<table class='shared'><thead><tr>"
+                        "<th>Termino (compuerta)</th><th>Usado en</th></tr></thead><tbody>")
+            for d in sh:
+                body.append(
+                    f"<tr><td><code>{_esc(d['term'])}</code></td>"
+                    f"<td>{', '.join(map(_esc, d['outputs']))}</td></tr>"
+                )
+            body.append("</tbody></table>")
+            body.append("<p class='hint'>Estas compuertas pueden compartirse entre salidas "
+                        "para ahorrar componentes.</p>")
 
     # por salida
     for name, vals in table.outputs.items():
@@ -114,29 +167,34 @@ def build_report(table, opt=None):
             f"<div><b>POS:</b> <code>{_esc(name)} = {_esc(sol['pos'].equation)}</code> "
             f"<span class='cost'>({sol['pos'].cost()[0]} comp, {sol['pos'].cost()[1]} lit)</span></div>"
         )
+        if sol["xor"]:
+            body.append(
+                f"<div class='xor'>&#8853; <b>XOR/XNOR:</b> <code>{_esc(name)} = {_esc(sol['xor'].equation)}</code> "
+                f"<span class='cost'>({sol['xor'].cost()[0]} comp, {sol['xor'].cost()[1]} lit)</span></div>"
+            )
         body.append(
             f"<div class='best'>&#9733; Mejor por costo: <b>{sol['best'].form.upper()}</b> &rarr; "
             f"<code>{_esc(name)} = {_esc(sol['best'].equation)}</code></div>"
         )
-        if sol["parity"]:
-            body.append(
-                f"<div class='xor'>&#8853; XOR/XNOR: <code>{_esc(name)} = {_esc(sol['parity']['equation'])}</code></div>"
-            )
         body.append("</div>")
 
         forms = _forms_to_show(opt, sol["best"])
 
         if opt.kmap:
             body.append("<div class='maps'>")
+            seen_pats = set()
             for form in forms:
-                s = sol[form]
-                pats = s.patterns if s.const is None else []
+                label, pats, _ = _kmap_for_form(vals, table.variables, sol, form)
+                key = (label, tuple(pats))
+                if key in seen_pats:
+                    continue
+                seen_pats.add(key)
                 body.append("<div class='mapwrap'>")
-                body.append(f"<div class='maplabel'>K-map {form.upper()}</div>")
+                body.append(f"<div class='maplabel'>{label}</div>")
                 body.append(render_kmap.kmap_svg(vals, table.variables, pats))
                 if pats:
                     body.append("<div class='legend'>"
-                                + render_kmap.group_legend(pats, table.variables, form)
+                                + render_kmap.group_legend(pats, table.variables, "sop")
                                 + "</div>")
                 body.append("</div>")
             body.append("</div>")
@@ -150,7 +208,29 @@ def build_report(table, opt=None):
                 body.append("</div>")
             body.append("</div>")
 
+        body.append(_languages_block(name, sol["best"]))
         body.append("</div>")  # outcard
+
+    # circuito completo combinado (SOP con compuertas compartidas)
+    if opt.circuit and any(solutions[n]["sop"].const is None for n in table.outputs):
+        named_sops = [(n, solutions[n]["sop"]) for n in table.outputs]
+        svg, gates = render_circuit.build_shared_circuit(named_sops)
+        body.append("<h2>Circuito completo sugerido</h2>")
+        body.append("<p class='hint'>Realizacion en SOP de todas las salidas con las compuertas AND "
+                    "compartidas (los atajos). Para una salida donde convenga XOR o POS, revisa su "
+                    "circuito individual de arriba.</p>")
+        if gates:
+            body.append("<table class='shared'><thead><tr><th>Compuerta</th><th>Termino</th>"
+                        "<th>Usada en</th></tr></thead><tbody>")
+            for g in gates:
+                mark = " (compartida)" if len(g["outputs"]) > 1 else ""
+                body.append(
+                    f"<tr><td><code>{_esc(g['id'])}</code></td>"
+                    f"<td><code>{_esc(g['term'])}</code></td>"
+                    f"<td>{', '.join(map(_esc, g['outputs']))}{mark}</td></tr>"
+                )
+            body.append("</tbody></table>")
+        body.append("<div class='cwrap' style='overflow-x:auto;'>" + svg + "</div>")
 
     return _wrap_html(opt.title, "\n".join(body))
 
@@ -178,6 +258,28 @@ table{border-collapse:collapse;margin:8px 0;}
 .legend{margin-top:8px;font-size:12px;}
 .outcard{margin-bottom:18px;}
 .hint{color:#666;font-size:12px;font-style:italic;}
+.guide{background:#eef4ff;border:1px solid #c8d8f0;border-radius:6px;padding:8px 12px;margin:10px 0;}
+.guide summary{font-weight:bold;cursor:pointer;}
+.guidebody{font-size:13px;line-height:1.6;}
+.guidebody .dc{background:#fff3cd;color:#b8860b;padding:0 3px;border-radius:3px;}
+.langhead{font-weight:bold;font-size:13px;margin:10px 0 4px;}
+.langs td{border:1px solid #e0e0e0;padding:3px 8px;font-size:13px;}
+.langs .lname{color:#555;font-weight:bold;white-space:nowrap;}
+.copybtn{font-size:11px;border:1px solid #aaa;background:#f3f3f3;border-radius:4px;
+  padding:2px 8px;cursor:pointer;}
+.copybtn:hover{background:#e2e8f5;}
+"""
+
+_CLIP_SCRIPT = """
+<script>
+document.addEventListener('click', function(e){
+  var b = e.target.closest('.copybtn'); if(!b) return;
+  navigator.clipboard.writeText(b.dataset.clip).then(function(){
+    var t = b.textContent; b.textContent = 'copiado';
+    setTimeout(function(){ b.textContent = t; }, 1200);
+  });
+});
+</script>
 """
 
 
@@ -185,7 +287,7 @@ def _wrap_html(title, body):
     return (
         f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
         f"<title>{_esc(title)}</title><style>{_CSS}</style></head>"
-        f"<body>{body}</body></html>"
+        f"<body>{body}{_CLIP_SCRIPT}</body></html>"
     )
 
 

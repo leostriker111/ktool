@@ -1,5 +1,19 @@
 # Cambios
 
+## 0.2.0
+
+- Interfaz: seleccion multiple de celdas (arrastrando o con Shift), resaltadas en
+  azul; las teclas 1, 0 y x cambian todas las seleccionadas a la vez.
+- Interfaz: copiar / pegar / cortar (Ctrl+C/V/X) en formato compatible con Excel.
+- Interfaz: renombrar las salidas haciendo clic en su encabezado.
+- Interfaz: menu de Ayuda con guia rapida, atajos de teclado y enlace al repositorio.
+- XOR/XNOR ahora compite como un camino mas y se elige si es la realizacion mas barata.
+- Documento: ecuaciones exportadas a Matematico, Verilog, VHDL, ABEL, Logisim, C,
+  Python y LaTeX, con boton para copiar.
+- Documento: seccion de circuito completo sugerido con las compuertas AND compartidas
+  entre salidas.
+- Documento: guia de lectura incluida.
+
 ## 0.1.0
 
 Primera versión.

@@ -19,10 +19,13 @@ componentes.
 - Minimización exacta con **Quine-McCluskey** (maneja *don't cares*).
 - Entrega **SOP y POS** al mismo tiempo, con el costo de cada forma.
 - **Elige automáticamente** la forma más conveniente por compuertas y literales.
-- Detecta cuando la función es un **XOR/XNOR** de un subconjunto de variables.
+- Considera **XOR/XNOR** como un camino más y lo elige si es la realización más barata.
 - Encuentra **términos reutilizables** entre salidas (compuertas compartidas).
 - Genera un **mapa de Karnaugh** con los grupos circulados en colores.
-- Dibuja el **circuito** (rieles de literales + compuertas) en SVG.
+- Dibuja el **circuito** por salida y un **circuito completo combinado** con las
+  compuertas compartidas entre todas las salidas.
+- Exporta las ecuaciones a **Verilog, VHDL, ABEL, Logisim, C, Python y LaTeX**, con
+  botón para copiar al portapapeles.
 - Construye la tabla **a partir de una expresión booleana** evaluando los 2^n casos.
 - Acepta minterminos en **decimal, hexadecimal (`0x`) o binario (`0b`)**.
 - Todo en **Python puro**, sin dependencias externas.
@@ -121,11 +124,22 @@ Las variables son letras `A` a `F`. Precedencia: NOT, luego AND, luego XOR, lueg
 kmap gui
 ```
 
-Tabla al estilo de un solucionador clásico: cada celda de salida **cicla
-`0 -> 1 -> x`** al hacer clic. Arriba eliges el número de variables y de salidas,
-activas la columna de notas y la forma (SOP, POS, auto o ambas). La barra de
-expresión llena una columna evaluando lo que escribas. El botón *Ecuaciones*
-muestra el resultado en el panel inferior y *Generar documento* arma el HTML.
+Tabla al estilo de un solucionador clásico. Arriba eliges el número de variables y
+de salidas, activas la columna de notas y la forma (SOP, POS, auto o ambas). La
+barra de expresión llena una columna evaluando lo que escribas. El botón
+*Ecuaciones* muestra el resultado en el panel inferior y *Generar documento* arma el
+HTML.
+
+Para llenar la tabla rápido:
+
+- **Selecciona** varias celdas arrastrando con el ratón (o Shift+clic para agregar);
+  quedan resaltadas en azul.
+- Con la selección hecha, las teclas **`1`**, **`0`** y **`x`** cambian todas a la vez.
+- **Doble clic** cicla una sola celda `0 -> 1 -> x`.
+- **Ctrl+C / Ctrl+V / Ctrl+X** copian, pegan y cortan en formato compatible con Excel.
+- **Clic en el encabezado** de una salida para renombrarla.
+
+El menú *Ayuda* tiene la guía rápida, la lista de atajos y el enlace al repositorio.
 
 ---
 

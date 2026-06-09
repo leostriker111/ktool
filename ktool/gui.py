@@ -1,43 +1,113 @@
-"""Interfaz grafica (Tkinter) estilo 32x8 con multiples salidas y notas."""
+"""Interfaz grafica (Tkinter): tabla con seleccion multiple, multiples salidas y notas."""
 
 from __future__ import annotations
 
+import webbrowser
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 
 from . import core, expr
 from .core import TruthTable, default_vars
 from .report import Options, build_report, save_report
 from .simplify import solve_output, shared_terms
 
+REPO_URL = "https://github.com/leostriker111/ktool"
+
 CYCLE = {0: 1, 1: "x", "x": 0}
 CELL_BG = {0: "#f3f3f3", 1: "#cdebcd", "x": "#fff0c2"}
 CELL_FG = {0: "#333", 1: "#176117", "x": "#9a6b00"}
+SEL_BG = "#2d6cdf"
+SEL_FG = "#ffffff"
+
+SHORTCUTS = [
+    ("Clic en celda", "Selecciona esa celda"),
+    ("Arrastrar", "Selecciona un rango de celdas"),
+    ("Shift + clic / arrastrar", "Agrega a la seleccion"),
+    ("1 / 0 / x", "Pone ese valor en todas las seleccionadas"),
+    ("Doble clic", "Cambia el valor de una sola celda (0->1->x)"),
+    ("Ctrl + C", "Copia la seleccion (formato Excel: TSV)"),
+    ("Ctrl + V", "Pega desde el portapapeles"),
+    ("Ctrl + X", "Corta (copia y pone 0)"),
+    ("Ctrl + A", "Selecciona toda la tabla"),
+    ("Esc", "Quita la seleccion"),
+    ("Clic en encabezado de salida", "Renombra la salida"),
+]
+
+GUIDE = (
+    "ktool simplifica logica digital.\n\n"
+    "1. Elige cuantas variables (2-6) y cuantas salidas (1-10).\n"
+    "2. Llena la tabla: cada celda cicla 0 -> 1 -> x con doble clic, o\n"
+    "   selecciona varias y presiona 1, 0 o x.\n"
+    "3. Tambien puedes escribir una expresion (ej: A'B + C) y llenar una\n"
+    "   columna evaluandola.\n"
+    "4. 'Ecuaciones' muestra SOP, POS, XOR/XNOR y la mejor por costo.\n"
+    "5. 'Generar documento' arma un HTML con mapas de Karnaugh, circuitos,\n"
+    "   el circuito completo con compuertas compartidas y las ecuaciones en\n"
+    "   varios lenguajes (Verilog, VHDL, ABEL, Logisim, C, ...).\n\n"
+    "Renombra una salida haciendo clic en su encabezado."
+)
 
 
-def out_names(count):
-    return ["Y"] if count == 1 else [f"Y{i+1}" for i in range(count)]
+def _default_name(i, k):
+    return "Y" if k == 1 else f"Y{i + 1}"
 
 
 class App:
     def __init__(self, root):
         self.root = root
         root.title("ktool - simplificador de logica digital")
-        root.geometry("1080x720")
+        root.geometry("1120x740")
 
         self.nvars = tk.IntVar(value=3)
         self.nouts = tk.IntVar(value=1)
         self.notes_on = tk.BooleanVar(value=False)
         self.form = tk.StringVar(value="auto")
 
-        self.values = []      # values[out][row]
-        self.cells = []       # buttons
-        self.note_entries = []
+        self.output_names = ["Y"]
+        self.values = []                 # values[oi][row]
+        self.cell_widget = {}            # (oi,row) -> Label
+        self.widget_cell = {}            # Label -> (oi,row)
+        self.note_entries = {}           # row -> Entry
+        self.out_headers = {}            # oi -> Label
+        self.selected = set()
+        self.drag_anchor = None
+        self.drag_base = set()
 
+        self._build_menu()
         self._build_controls()
         self._build_table_area()
         self._build_bottom()
+        self._bind_keys()
         self.rebuild_table()
+
+    # ---------- menu ----------
+    def _build_menu(self):
+        menubar = tk.Menu(self.root)
+
+        m_file = tk.Menu(menubar, tearoff=0)
+        m_file.add_command(label="Generar documento", command=self.generate)
+        m_file.add_separator()
+        m_file.add_command(label="Salir", command=self.root.destroy)
+        menubar.add_cascade(label="Archivo", menu=m_file)
+
+        m_edit = tk.Menu(menubar, tearoff=0)
+        m_edit.add_command(label="Copiar", command=self.copy)
+        m_edit.add_command(label="Pegar", command=self.paste)
+        m_edit.add_command(label="Cortar", command=self.cut)
+        m_edit.add_separator()
+        m_edit.add_command(label="Seleccionar todo", command=self.select_all)
+        m_edit.add_command(label="Limpiar valores", command=self.clear_values)
+        menubar.add_cascade(label="Editar", menu=m_edit)
+
+        m_help = tk.Menu(menubar, tearoff=0)
+        m_help.add_command(label="Guia rapida", command=self.show_guide)
+        m_help.add_command(label="Atajos de teclado", command=self.show_shortcuts)
+        m_help.add_separator()
+        m_help.add_command(label="Repositorio (GitHub)", command=lambda: webbrowser.open(REPO_URL))
+        m_help.add_command(label="README", command=lambda: webbrowser.open(REPO_URL + "#readme"))
+        menubar.add_cascade(label="Ayuda", menu=m_help)
+
+        self.root.config(menu=menubar)
 
     # ---------- controles ----------
     def _build_controls(self):
@@ -45,44 +115,45 @@ class App:
         bar.pack(side=tk.TOP, fill=tk.X)
 
         ttk.Label(bar, text="Variables:").pack(side=tk.LEFT)
-        sp1 = ttk.Spinbox(bar, from_=2, to=6, width=3, textvariable=self.nvars,
-                          command=self.rebuild_table)
-        sp1.pack(side=tk.LEFT, padx=(2, 12))
+        ttk.Spinbox(bar, from_=2, to=6, width=3, textvariable=self.nvars,
+                    command=self.rebuild_table).pack(side=tk.LEFT, padx=(2, 12))
 
         ttk.Label(bar, text="Salidas:").pack(side=tk.LEFT)
-        sp2 = ttk.Spinbox(bar, from_=1, to=10, width=3, textvariable=self.nouts,
-                          command=self.rebuild_table)
-        sp2.pack(side=tk.LEFT, padx=(2, 12))
+        ttk.Spinbox(bar, from_=1, to=10, width=3, textvariable=self.nouts,
+                    command=self.rebuild_table).pack(side=tk.LEFT, padx=(2, 12))
 
-        ttk.Checkbutton(bar, text="Columna notas", variable=self.notes_on,
+        ttk.Checkbutton(bar, text="Notas", variable=self.notes_on,
                         command=self.rebuild_table).pack(side=tk.LEFT, padx=(0, 12))
 
         ttk.Label(bar, text="Forma:").pack(side=tk.LEFT)
         ttk.OptionMenu(bar, self.form, "auto", "auto", "sop", "pos", "both").pack(
             side=tk.LEFT, padx=(2, 12))
 
-        ttk.Button(bar, text="Ecuaciones", command=self.show_equations).pack(side=tk.LEFT, padx=4)
-        ttk.Button(bar, text="Generar documento", command=self.generate).pack(side=tk.LEFT, padx=4)
-        ttk.Button(bar, text="Limpiar", command=self.clear_values).pack(side=tk.LEFT, padx=4)
+        ttk.Label(bar, text="Poner:").pack(side=tk.LEFT)
+        for val, txt in ((1, "1"), (0, "0"), ("x", "x")):
+            ttk.Button(bar, text=txt, width=2,
+                       command=lambda v=val: self.apply_value(v)).pack(side=tk.LEFT, padx=1)
 
-        # barra de expresion
-        bar2 = ttk.Frame(self.root, padding=(8, 0, 8, 8))
+        ttk.Button(bar, text="Ecuaciones", command=self.show_equations).pack(side=tk.LEFT, padx=(12, 4))
+        ttk.Button(bar, text="Generar documento", command=self.generate).pack(side=tk.LEFT, padx=4)
+
+        bar2 = ttk.Frame(self.root, padding=(8, 0, 8, 6))
         bar2.pack(side=tk.TOP, fill=tk.X)
         ttk.Label(bar2, text="Expresion:").pack(side=tk.LEFT)
-        self.expr_entry = ttk.Entry(bar2, width=42)
+        self.expr_entry = ttk.Entry(bar2, width=40)
         self.expr_entry.pack(side=tk.LEFT, padx=4)
         self.expr_entry.insert(0, "A'B + C")
         ttk.Label(bar2, text="-> salida:").pack(side=tk.LEFT)
         self.expr_target = ttk.Combobox(bar2, width=5, state="readonly")
         self.expr_target.pack(side=tk.LEFT, padx=4)
         ttk.Button(bar2, text="Evaluar y llenar", command=self.fill_from_expr).pack(side=tk.LEFT)
-        ttk.Label(bar2, text="  (AND: ab a*b | OR: + | NOT: ' ! | XOR: ^)",
-                  foreground="#777").pack(side=tk.LEFT)
+        ttk.Label(bar2, text="   selecciona arrastrando | 1/0/x cambian | Ctrl+C/V/X | clic en encabezado renombra",
+                  foreground="#777").pack(side=tk.LEFT, padx=8)
 
     def _build_table_area(self):
         wrap = ttk.Frame(self.root)
         wrap.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=8)
-        self.canvas = tk.Canvas(wrap, highlightthickness=0)
+        self.canvas = tk.Canvas(wrap, highlightthickness=0, takefocus=True)
         vsb = ttk.Scrollbar(wrap, orient="vertical", command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=vsb.set)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
@@ -104,7 +175,49 @@ class App:
         self.result = tk.Text(frame, height=9, font=("Consolas", 10), wrap="none")
         self.result.pack(fill=tk.X)
 
+    def _bind_keys(self):
+        r = self.root
+        for key in ("1", "0", "x", "X"):
+            r.bind(f"<KeyPress-{key}>", self._on_value_key)
+        r.bind("<Control-c>", lambda e: self._guarded(self.copy))
+        r.bind("<Control-C>", lambda e: self._guarded(self.copy))
+        r.bind("<Control-v>", lambda e: self._guarded(self.paste))
+        r.bind("<Control-V>", lambda e: self._guarded(self.paste))
+        r.bind("<Control-x>", lambda e: self._guarded(self.cut))
+        r.bind("<Control-X>", lambda e: self._guarded(self.cut))
+        r.bind("<Control-a>", lambda e: self._guarded(self.select_all))
+        r.bind("<Control-A>", lambda e: self._guarded(self.select_all))
+        r.bind("<Escape>", lambda e: self.clear_selection())
+
+    # ---------- foco / teclas ----------
+    def _entry_focused(self):
+        w = self.root.focus_get()
+        return isinstance(w, (tk.Entry, ttk.Entry, tk.Text, ttk.Combobox))
+
+    def _guarded(self, fn):
+        if self._entry_focused():
+            return
+        fn()
+
+    def _on_value_key(self, event):
+        if self._entry_focused():
+            return
+        ch = event.char.lower()
+        if ch in ("1", "0"):
+            self.apply_value(int(ch))
+        elif ch == "x":
+            self.apply_value("x")
+
     # ---------- construccion de tabla ----------
+    def _sync_names(self, k):
+        names = []
+        for i in range(k):
+            if i < len(self.output_names):
+                names.append(self.output_names[i])
+            else:
+                names.append(_default_name(i, k))
+        self.output_names = names
+
     def rebuild_table(self):
         try:
             n = max(2, min(6, int(self.nvars.get())))
@@ -113,90 +226,223 @@ class App:
             return
         rows = 1 << n
         variables = default_vars(n)
-        names = out_names(k)
+        self._sync_names(k)
 
-        # preserva valores previos
         old = self.values
         self.values = []
         for oi in range(k):
             col = []
             for r in range(rows):
-                v = 0
-                if oi < len(old) and r < len(old[oi]):
-                    v = old[oi][r]
+                v = old[oi][r] if oi < len(old) and r < len(old[oi]) else 0
                 col.append(v)
             self.values.append(col)
 
         for w in self.table_frame.winfo_children():
             w.destroy()
-        self.cells = [[None] * rows for _ in range(k)]
-        self.note_entries = []
+        self.cell_widget.clear()
+        self.widget_cell.clear()
+        self.note_entries.clear()
+        self.out_headers.clear()
+        self.selected.clear()
 
-        # encabezados
-        col = 0
         ttk.Label(self.table_frame, text="#", width=4, anchor="center",
-                  relief="solid", borderwidth=1).grid(row=0, column=col, sticky="nsew")
-        col += 1
+                  relief="solid", borderwidth=1).grid(row=0, column=0, sticky="nsew")
+        col = 1
         for v in variables:
             ttk.Label(self.table_frame, text=v, width=3, anchor="center",
                       relief="solid", borderwidth=1).grid(row=0, column=col, sticky="nsew")
             col += 1
         out_start = col
-        for name in names:
-            ttk.Label(self.table_frame, text=name, width=4, anchor="center",
-                      relief="solid", borderwidth=1,
-                      background="#dde7f7").grid(row=0, column=col, sticky="nsew")
+        for oi in range(k):
+            lbl = tk.Label(self.table_frame, text=self.output_names[oi], width=4, anchor="center",
+                           relief="solid", borderwidth=1, bg="#dde7f7", cursor="hand2")
+            lbl.grid(row=0, column=col, sticky="nsew")
+            lbl.bind("<Button-1>", lambda e, o=oi: self.rename_output(o))
+            self.out_headers[oi] = lbl
             col += 1
+        notes_col = col
         if self.notes_on.get():
             ttk.Label(self.table_frame, text="nota", width=10, anchor="center",
                       relief="solid", borderwidth=1).grid(row=0, column=col, sticky="nsew")
-            notes_col = col
 
         for r in range(rows):
             gr = r + 1
             tk.Label(self.table_frame, text=str(r), width=4, relief="solid", borderwidth=1,
                      bg="#efefef", fg="#888").grid(row=gr, column=0, sticky="nsew")
             c = 1
-            for b in core.TruthTable(n).bits(r):
+            for b in TruthTable(n).bits(r):
                 tk.Label(self.table_frame, text=str(b), width=3, relief="solid",
                          borderwidth=1, bg="#fbfbfb").grid(row=gr, column=c, sticky="nsew")
                 c += 1
             for oi in range(k):
                 v = self.values[oi][r]
-                btn = tk.Button(self.table_frame, text=str(v), width=4, relief="solid",
-                                borderwidth=1, bg=CELL_BG[v], fg=CELL_FG[v],
-                                command=lambda o=oi, row=r: self.cycle(o, row))
-                btn.grid(row=gr, column=out_start + oi, sticky="nsew")
-                self.cells[oi][r] = btn
+                cell = tk.Label(self.table_frame, text=str(v), width=4, relief="solid",
+                                borderwidth=1, bg=CELL_BG[v], fg=CELL_FG[v])
+                cell.grid(row=gr, column=out_start + oi, sticky="nsew")
+                cell.bind("<Button-1>", lambda e, o=oi, row=r: self.on_press(o, row, False))
+                cell.bind("<Shift-Button-1>", lambda e, o=oi, row=r: self.on_press(o, row, True))
+                cell.bind("<B1-Motion>", self.on_drag)
+                cell.bind("<Double-Button-1>", lambda e, o=oi, row=r: self.on_double(o, row))
+                self.cell_widget[(oi, r)] = cell
+                self.widget_cell[cell] = (oi, r)
             if self.notes_on.get():
                 e = ttk.Entry(self.table_frame, width=12)
                 e.grid(row=gr, column=notes_col, sticky="nsew")
-                self.note_entries.append(e)
+                self.note_entries[r] = e
 
-        self.expr_target["values"] = names
+        self.expr_target["values"] = self.output_names
         self.expr_target.current(0)
 
-    def cycle(self, oi, row):
-        v = CYCLE[self.values[oi][row]]
-        self.values[oi][row] = v
-        btn = self.cells[oi][row]
-        btn.config(text=str(v), bg=CELL_BG[v], fg=CELL_FG[v])
+    # ---------- seleccion ----------
+    def _refresh_cell(self, oi, r):
+        w = self.cell_widget.get((oi, r))
+        if not w:
+            return
+        v = self.values[oi][r]
+        if (oi, r) in self.selected:
+            w.config(text=str(v), bg=SEL_BG, fg=SEL_FG)
+        else:
+            w.config(text=str(v), bg=CELL_BG[v], fg=CELL_FG[v])
+
+    def _set_selection(self, new):
+        diff = new ^ self.selected
+        self.selected = set(new)
+        for oi, r in diff:
+            self._refresh_cell(oi, r)
+
+    def _rect(self, a, b):
+        o1, r1 = a
+        o2, r2 = b
+        return {
+            (o, r)
+            for o in range(min(o1, o2), max(o1, o2) + 1)
+            for r in range(min(r1, r2), max(r1, r2) + 1)
+        }
+
+    def on_press(self, oi, r, shift):
+        self.canvas.focus_set()
+        self.drag_anchor = (oi, r)
+        if shift:
+            self.drag_base = set(self.selected)
+            self._set_selection(self.selected | {(oi, r)})
+        else:
+            self.drag_base = set()
+            self._set_selection({(oi, r)})
+
+    def on_drag(self, event):
+        if not self.drag_anchor:
+            return
+        w = self.root.winfo_containing(event.x_root, event.y_root)
+        cell = self.widget_cell.get(w)
+        if cell:
+            self._set_selection(self.drag_base | self._rect(self.drag_anchor, cell))
+
+    def on_double(self, oi, r):
+        v = CYCLE[self.values[oi][r]]
+        self.values[oi][r] = v
+        self._refresh_cell(oi, r)
+
+    def apply_value(self, val):
+        if not self.selected:
+            return
+        for oi, r in self.selected:
+            self.values[oi][r] = val
+            self._refresh_cell(oi, r)
+
+    def select_all(self):
+        rows = len(self.values[0]) if self.values else 0
+        self._set_selection({(oi, r) for oi in range(len(self.values)) for r in range(rows)})
+
+    def clear_selection(self):
+        self._set_selection(set())
 
     def clear_values(self):
         for oi in range(len(self.values)):
             for r in range(len(self.values[oi])):
                 self.values[oi][r] = 0
-                self.cells[oi][r].config(text="0", bg=CELL_BG[0], fg=CELL_FG[0])
+                self._refresh_cell(oi, r)
+
+    # ---------- portapapeles (formato Excel/TSV) ----------
+    def _selection_bounds(self):
+        ois = [o for o, _ in self.selected]
+        rs = [r for _, r in self.selected]
+        return min(ois), max(ois), min(rs), max(rs)
+
+    def copy(self):
+        if not self.selected:
+            return
+        o0, o1, r0, r1 = self._selection_bounds()
+        lines = []
+        for r in range(r0, r1 + 1):
+            lines.append("\t".join(str(self.values[o][r]) for o in range(o0, o1 + 1)))
+        self.root.clipboard_clear()
+        self.root.clipboard_append("\n".join(lines))
+
+    def cut(self):
+        if not self.selected:
+            return
+        self.copy()
+        for oi, r in self.selected:
+            self.values[oi][r] = 0
+            self._refresh_cell(oi, r)
+
+    def paste(self):
+        try:
+            text = self.root.clipboard_get()
+        except tk.TclError:
+            return
+        if not text:
+            return
+        if self.selected:
+            o0, _, r0, _ = self._selection_bounds()
+        else:
+            o0, r0 = 0, 0
+        rows = len(self.values[0])
+        k = len(self.values)
+        for di, line in enumerate(text.replace("\r", "").split("\n")):
+            if line == "":
+                continue
+            for dj, tok in enumerate(line.split("\t")):
+                t = tok.strip().lower()
+                if t in ("1", "0"):
+                    v = int(t)
+                elif t in ("x", "-"):
+                    v = "x"
+                else:
+                    continue
+                o, r = o0 + dj, r0 + di
+                if 0 <= o < k and 0 <= r < rows:
+                    self.values[o][r] = v
+        for oi in range(k):
+            for r in range(rows):
+                self._refresh_cell(oi, r)
+
+    # ---------- renombrar salida ----------
+    def rename_output(self, oi):
+        current = self.output_names[oi]
+        new = simpledialog.askstring("Renombrar salida", "Nuevo nombre:",
+                                     initialvalue=current, parent=self.root)
+        if not new:
+            return
+        new = new.strip()
+        if not new:
+            return
+        if new != current and new in self.output_names:
+            messagebox.showerror("Nombre repetido", f"Ya existe una salida llamada {new!r}.")
+            return
+        self.output_names[oi] = new
+        self.out_headers[oi].config(text=new)
+        self.expr_target["values"] = self.output_names
 
     # ---------- acciones ----------
     def _current_table(self):
         n = max(2, min(6, int(self.nvars.get())))
         variables = default_vars(n)
-        names = out_names(max(1, min(10, int(self.nouts.get()))))
-        outputs = {names[oi]: list(self.values[oi]) for oi in range(len(names))}
+        outputs = {self.output_names[oi]: list(self.values[oi]) for oi in range(len(self.values))}
         notes = None
         if self.notes_on.get() and self.note_entries:
-            notes = [e.get() for e in self.note_entries]
+            rows = len(self.values[0])
+            notes = [self.note_entries[r].get() if r in self.note_entries else "" for r in range(rows)]
         return TruthTable(n, variables, outputs, notes)
 
     def fill_from_expr(self):
@@ -216,26 +462,24 @@ class App:
             messagebox.showerror("Expresion invalida", str(e))
             return
         target = self.expr_target.get()
-        names = out_names(max(1, min(10, int(self.nouts.get()))))
-        oi = names.index(target)
+        oi = self.output_names.index(target)
         rows = 1 << n
         for r in range(rows):
             env = {variables[k]: (r >> (n - 1 - k)) & 1 for k in range(n)}
-            v = expr.evaluate(ast, env)
-            self.values[oi][r] = v
-            self.cells[oi][r].config(text=str(v), bg=CELL_BG[v], fg=CELL_FG[v])
+            self.values[oi][r] = expr.evaluate(ast, env)
+            self._refresh_cell(oi, r)
 
     def show_equations(self):
         table = self._current_table()
-        sols = {n: solve_output(v, table.variables) for n, v in table.outputs.items()}
+        sols = {name: solve_output(v, table.variables) for name, v in table.outputs.items()}
         lines = [f"{table.nvars} variables: {', '.join(table.variables)}", ""]
         for name, sol in sols.items():
             lines.append(f"[{name}]")
             lines.append(f"  SOP : {name} = {sol['sop'].equation}   ({sol['sop'].cost()[0]} comp, {sol['sop'].cost()[1]} lit)")
             lines.append(f"  POS : {name} = {sol['pos'].equation}   ({sol['pos'].cost()[0]} comp, {sol['pos'].cost()[1]} lit)")
+            if sol["xor"]:
+                lines.append(f"  XOR : {name} = {sol['xor'].equation}   ({sol['xor'].cost()[0]} comp, {sol['xor'].cost()[1]} lit)")
             lines.append(f"  best: {sol['best'].form.upper()} -> {name} = {sol['best'].equation}")
-            if sol["parity"]:
-                lines.append(f"  xor : {name} = {sol['parity']['equation']}")
             lines.append("")
         if len(table.outputs) > 1:
             sh = shared_terms(sols, table.variables, "sop")
@@ -254,12 +498,30 @@ class App:
             defaultextension=".html",
             filetypes=[("HTML", "*.html")],
             initialfile="ktool_resultado.html",
-        )
-        if not path:
-            path = None
+        ) or None
         saved = save_report(html, path, open_browser=True)
         self.show_equations()
         messagebox.showinfo("Documento generado", f"Guardado en:\n{saved}")
+
+    # ---------- ventanas de ayuda ----------
+    def _text_window(self, title, content, width=70, height=18):
+        win = tk.Toplevel(self.root)
+        win.title(title)
+        txt = tk.Text(win, wrap="word", width=width, height=height, font=("Consolas", 10),
+                      padx=10, pady=10)
+        txt.pack(fill=tk.BOTH, expand=True)
+        txt.insert("1.0", content)
+        txt.config(state="disabled")
+        ttk.Button(win, text="Cerrar", command=win.destroy).pack(pady=6)
+
+    def show_guide(self):
+        self._text_window("Guia rapida", GUIDE)
+
+    def show_shortcuts(self):
+        lines = ["Atajos de teclado y raton", ""]
+        for keys, desc in SHORTCUTS:
+            lines.append(f"  {keys:<28} {desc}")
+        self._text_window("Atajos de teclado", "\n".join(lines), width=64, height=16)
 
 
 def launch():

@@ -5,16 +5,24 @@ from __future__ import annotations
 from . import qm
 
 
-def term_literals(pattern, variables, polarity_invert=False):
-    """Patron '10-1' -> lista de literales. polarity_invert para sumandos POS."""
-    lits = []
+def literal_pairs(pattern, variables, polarity_invert=False):
+    """Patron '10-1' -> lista de (variable, es_complemento)."""
+    out = []
     for i, c in enumerate(pattern):
         if c == "-":
             continue
         v = variables[i]
         one_is_true = (c == "1") != polarity_invert
-        lits.append(v if one_is_true else v + "'")
-    return lits
+        out.append((v, not one_is_true))
+    return out
+
+
+def term_literals(pattern, variables, polarity_invert=False):
+    """Patron '10-1' -> lista de literales. polarity_invert para sumandos POS."""
+    return [
+        v + "'" if comp else v
+        for v, comp in literal_pairs(pattern, variables, polarity_invert)
+    ]
 
 
 def format_product(pattern, variables):
@@ -30,16 +38,21 @@ def format_sum(pattern, variables):
 class Solution:
     """Resultado de minimizar una salida en una forma (SOP o POS)."""
 
-    def __init__(self, form, patterns, variables, const=None):
-        self.form = form  # 'sop' | 'pos'
+    def __init__(self, form, patterns, variables, const=None, xor_vars=None, xnor=False):
+        self.form = form  # 'sop' | 'pos' | 'xor'
         self.patterns = patterns
         self.variables = variables
         self.const = const  # 0 / 1 cuando es constante
+        self.xor_vars = xor_vars or []
+        self.xnor = xnor
 
     @property
     def equation(self):
         if self.const is not None:
             return str(self.const)
+        if self.form == "xor":
+            body = " ^ ".join(self.xor_vars)
+            return f"({body})'" if self.xnor else body
         if not self.patterns:
             return "0" if self.form == "sop" else "1"
         if self.form == "sop":
@@ -50,7 +63,12 @@ class Solution:
 
     def cost(self):
         """(compuertas, literales) aprox. Para elegir la forma mas barata."""
-        if self.const is not None or not self.patterns:
+        if self.const is not None:
+            return (0, 0)
+        if self.form == "xor":
+            k = len(self.xor_vars)
+            return (max(0, k - 1) + (1 if self.xnor else 0), k)
+        if not self.patterns:
             return (0, 0)
         literals = sum(qm.literal_count(p) for p in self.patterns)
         multi = [p for p in self.patterns if qm.literal_count(p) > 1]
@@ -78,12 +96,27 @@ def solve_output(values, variables):
         sop = Solution("sop", sop_pat, variables)
         pos = Solution("pos", pos_pat, variables)
 
-    best = sop if sop.cost() <= pos.cost() else pos
+    parity = detect_parity(values, variables)
+    xor = None
+    if parity:
+        xor = Solution(
+            "xor", [], variables,
+            xor_vars=parity["subset"], xnor=parity["xnor"],
+        )
+
+    candidates = [("sop", sop), ("pos", pos)]
+    if xor is not None:
+        candidates.append(("xor", xor))
+    # menor costo; en empate gana sop, luego pos, luego xor
+    order = {"sop": 0, "pos": 1, "xor": 2}
+    best = min(candidates, key=lambda kv: (kv[1].cost(), order[kv[0]]))[1]
+
     return {
         "sop": sop,
         "pos": pos,
+        "xor": xor,
         "best": best,
-        "parity": detect_parity(values, variables),
+        "parity": parity,
     }
 
 
