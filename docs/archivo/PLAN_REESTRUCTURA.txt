@@ -408,6 +408,67 @@ ETAPA C - subir
 - Rollback: `git restore` por archivo, o `git reset --hard` al commit previo de la
   etapa, o el .zip de Descargas como ultimo recurso.
 
+--------------------------------------------------------------------------------
+ 9. OTROS HARDCODEOS DETECTADOS (auditoria sobre v0.3.0)
+--------------------------------------------------------------------------------
+Ademas del traductor SPECS (seccion 4), la auditoria con grep encontro esto.
+Prioridad: [A]=rapido y claro, [B]=medio, [C]=opcional/cosmetico.
+
+H1 [A] LIMITES MAGICOS DUPLICADOS (vars / salidas)
+    Donde: gui.py 500-501 (rebuild_table), 741 (_current_table), 754 (fill_from_expr)
+           -> `max(2, min(6, ...))` y `max(1, min(32, ...))`. Tambien en los Spinbox
+           (_build_controls): from_=2 to=6 / from_=1 to=32.
+    Problema: cambiar un limite obliga a tocar 4-5 lugares; facil olvidar uno.
+    Fix: constantes unicas en core/table.py: MIN_VARS=2, MAX_VARS=6, MAX_OUTPUTS=32.
+         Usarlas en gui (Spinbox y clamps). Un solo lugar de verdad.
+
+H2 [A] _esc DUPLICADO TRES VECES
+    Donde: render_circuit.py:8, render_kmap.py:32, report.py:13 (misma funcion copiada).
+    Fix: un util compartido (render/_util.py con _esc y _attr) e importarlo. DRY.
+
+H3 [A] PALETA DE COLORES REGADA (magic colors por todos lados)
+    Donde: gui.py (CELL_BG, CELL_FG, SEL_BG, SEL_FG, SEG_OFF, SEG_ON, DISP_BG,
+           NAME_FG y sueltos "#dde7f7" "#efefef" "#888" "#fbfbfb" "#0a0a0a"),
+           render_kmap.py (GROUP_COLORS y "#ffffff" "#fff3cd" "#e9f5e9" "#b8860b"
+           "#222"), render_circuit.py (WIRE_COLORS), report.py (_CSS + estilos inline
+           tipo background:#e9f5e9).
+    Problema: no hay tema unico; el "encendido" de la tabla y el del K-map usan
+           verdes distintos; cambiar apariencia = cazar hex en 4 archivos.
+    Fix: un modulo de tema (ktool/theme.py) con la paleta nombrada (ON/OFF/DONTCARE/
+         SELECT/GROUP_COLORS/WIRE_COLORS...). Deja la puerta a tema claro/oscuro.
+
+H4 [B] _SPLITS ES UNA TABLA LITERAL CALCULABLE
+    Donde: core.py:101-107 (dict n=2..6 -> (row_vars, col_vars)).
+    Observacion: es una formula -> row_vars=range(n//2), col_vars=range(n//2, n)
+                 (verificado para 2,3,4,5,6).
+    Fix: en kmap_layout.py calcularlo en vez del dict; validar n con MIN/MAX_VARS (H1).
+
+H5 [B] NUMEROS MAGICOS DE LAYOUT INLINE EN LOS RENDERERS
+    Donde: render_circuit (gate_w, rail_gap, offsets 22/16/60/130...), render_kmap
+           (margenes), gui _seg7_defs/_draw_led (coords del 7seg y LED).
+    Fix: subir esos literales a constantes nombradas al inicio de cada renderer
+         (CELL ya existe; faltan los del circuito y displays). No cambia el dibujo.
+
+H6 [B] _LANG_ALIASES SEPARADO DE LA LISTA DE LENGUAJES
+    Donde: cli.py:22 vive lejos de langs.LANG_ORDER/SPECS.
+    Fix: al hacer render/codegen.py, poner ahi LANG_ORDER + alias juntos; cli los pide.
+
+H7 [C] MAPAS DE TOKENS Y PREFIJOS COMO if/elif
+    Donde: expr.tokenize (chars -> token) y gui._parse_fill_number (prefijos b/h/d/0b/0x).
+    Fix (al partir lexer.py): tabla {simbolo: tipo} en vez de if/elif. Mas extensible.
+
+H8 [C] PLANTILLAS HTML/CSS/JS INLINE EN report.py
+    Donde: _CSS, _GUIDE, _CLIP_SCRIPT como strings gigantes.
+    Nota: aceptable para una herramienta que escupe UN html. Si crecen, mover a
+          render/assets/ y leerlos.
+
+H9 [C] VARIABLES FIJAS A..F
+    Donde: core.VAR_NAMES = ["A".."F"]. El tope de 6 es propio del K-map (se queda
+           como MAX_VARS), pero los NOMBRES podrian ser configurables sin tocar el motor.
+
+ORDEN SUGERIDO: H1, H2, H3 caen en la Etapa A (centralizar, sin cambiar comportamiento).
+H4-H7 junto con su modulo en Etapa A/B. H8-H9 quedan como deuda futura, anotada.
+
 ================================================================================
  FIN DEL PLAN
 ================================================================================
