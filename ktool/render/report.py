@@ -145,7 +145,7 @@ def _languages_section(table, solutions, opt_langs):
     parts = ["<h2>Ecuaciones en varios lenguajes</h2>",
              "<p class='hint'>Cada bloque trae todas las salidas en ese lenguaje; el boton copia el bloque completo.</p>"]
     for lang in chosen:
-        if lang not in codegen.SPECS:
+        if lang not in codegen.OPS:
             continue
         lines = [codegen.render(solutions[name]["best"], name, lang) for name in table.outputs]
         blob = "\n".join(lines)

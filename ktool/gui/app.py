@@ -11,6 +11,7 @@ from ..core.table import TruthTable, default_vars, MIN_VARS, MAX_VARS, MAX_OUTPU
 from ..core import ast as expr
 from ..core.simplify import solve_output, shared_terms
 from ..render.report import Options, build_report, save_report
+from ..render import codegen
 from .displays import DisplayWidget
 
 from .. import theme
@@ -193,6 +194,12 @@ class App:
         self.expr_target = ttk.Combobox(bar2, width=5, state="readonly")
         self.expr_target.pack(side=tk.LEFT, padx=4)
         ttk.Button(bar2, text="Evaluar y llenar", command=self.fill_from_expr).pack(side=tk.LEFT)
+        ttk.Label(bar2, text="  traducir a:").pack(side=tk.LEFT)
+        self.translate_lang = ttk.Combobox(bar2, width=10, state="readonly",
+                                            values=["Todos"] + codegen.LANG_ORDER)
+        self.translate_lang.set("Verilog")
+        self.translate_lang.pack(side=tk.LEFT, padx=4)
+        ttk.Button(bar2, text="Traducir", command=self.translate_expr).pack(side=tk.LEFT)
         ttk.Label(bar2, text="   expresion (A'B+C) o numero (b1011, h4D, d77) | flechas y Enter navegan | Enter en Salidas aplica",
                   foreground="#777").pack(side=tk.LEFT, padx=8)
 
@@ -678,6 +685,26 @@ class App:
             self.values[oi][r] = expr.evaluate(ast, env)
             self._refresh_cell(oi, r)
         self._refresh_displays()
+
+    def translate_expr(self):
+        text = self.expr_entry.get().strip()
+        if not text:
+            return
+        name = self.expr_target.get() or "Y"
+        try:
+            ast = expr.parse(text)
+        except Exception as e:
+            messagebox.showerror("Expresion invalida", str(e))
+            return
+        choice = self.translate_lang.get()
+        langs = codegen.LANG_ORDER if choice == "Todos" else [choice]
+        lines = [f"Expresion: {text}", ""]
+        for lang in langs:
+            lines.append(f"[{lang}]")
+            lines.append("  " + codegen.OPS[lang]["assign"].format(
+                name=name, rhs=codegen.emit(ast, lang)))
+            lines.append("")
+        self._text_window(f"Traduccion -> {choice}", "\n".join(lines))
 
     def show_equations(self):
         table = self._current_table()

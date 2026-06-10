@@ -56,36 +56,64 @@ producen resultados idénticos.
 Cada archivo tiene una responsabilidad y las dependencias van en un solo sentido
 (los módulos de presentación dependen del núcleo, nunca al revés).
 
+El paquete está en tres subpaquetes y las dependencias van en un solo sentido:
+`gui`/`cli` → `render` → `core`. El núcleo no importa de presentación.
+
 ```mermaid
 flowchart LR
-    cli["cli.py"] --> core["core.py"]
-    cli --> report["report.py"]
-    gui["gui.py"] --> core
+    cli["cli.py"] --> table["core/table.py"]
+    cli --> report["render/report.py"]
+    cli --> codegen["render/codegen.py"]
+    gui["gui/app.py"] --> table
     gui --> report
-    gui --> expr["expr.py"]
+    gui --> astm["core/ast.py"]
 
-    report --> simplify["simplify.py"]
-    report --> render_kmap["render_kmap.py"]
-    report --> render_circuit["render_circuit.py"]
+    report --> simplify["core/simplify.py"]
+    report --> kmap["render/kmap.py"]
+    report --> circuit["render/circuit.py"]
+    report --> codegen
 
-    simplify --> qm["qm.py"]
-    render_kmap --> core
-    render_kmap --> simplify
-    render_circuit --> simplify
-    core --> expr
+    simplify --> qm["core/qm.py"]
+    kmap --> layout["core/kmap_layout.py"]
+    kmap --> simplify
+    circuit --> simplify
+    codegen --> astp["core/parser.py"]
+    codegen --> simplify
+    table --> astm
+    astm --> astp
+    astp --> lexer["core/lexer.py"]
+```
+
+**Pipeline del traductor (Etapa B):** una sola fuente de verdad.
+Texto o `Solution` → AST de tuplas → emisor por precedencia.
+
+```mermaid
+flowchart LR
+    txt["texto: A'B + C"] --> lex["lexer.tokenize"]
+    lex --> par["parser.parse"]
+    par --> ast["AST (tuplas)"]
+    sol["Solution minimizada"] --> s2a["codegen.solution_to_ast"]
+    s2a --> ast
+    ast --> emit["codegen.emit(node, lang)"]
+    emit --> out["Verilog / VHDL / C / ..."]
 ```
 
 | Módulo | Responsabilidad |
 | --- | --- |
-| `core.py` | Tabla de verdad, parsing de bases numéricas y layout del K-map (código Gray). |
-| `qm.py` | Quine-McCluskey: implicantes primos y cobertura mínima con Petrick. |
-| `expr.py` | Tokeniza y parsea expresiones booleanas y las evalúa sobre los 2^n casos. |
-| `simplify.py` | Da formato a las ecuaciones, detecta XOR/XNOR, calcula costo y términos compartidos. |
-| `render_kmap.py` | Dibuja el mapa de Karnaugh en SVG con los grupos circulados. |
-| `render_circuit.py` | Dibuja el circuito en SVG (rieles de literales y compuertas). |
-| `report.py` | Arma el documento HTML uniendo todo. |
-| `cli.py` | Línea de comandos y switches. |
-| `gui.py` | Interfaz gráfica en tkinter. |
+| `core/table.py` | Tabla de verdad y parsing de bases numéricas. |
+| `core/kmap_layout.py` | Geometría del K-map (código Gray, particiones). |
+| `core/qm.py` | Quine-McCluskey: implicantes primos y cobertura mínima con Petrick. |
+| `core/lexer.py` | Tokeniza la expresión booleana (scanner). |
+| `core/parser.py` | Parser descendente recursivo → AST de tuplas. |
+| `core/ast.py` | Gramática de nodos, `evaluate` sobre los 2^n casos, `build_output`. |
+| `core/simplify.py` | Formato de ecuaciones, XOR/XNOR, costo y términos compartidos. |
+| `render/kmap.py` | Dibuja el mapa de Karnaugh en SVG con los grupos circulados. |
+| `render/circuit.py` | Dibuja el circuito en SVG (rieles de literales y compuertas). |
+| `render/codegen.py` | Traductor AST → lenguaje (OPS por lenguaje + `emit` por precedencia). |
+| `render/report.py` | Arma el documento HTML uniendo todo. |
+| `cli.py` | Línea de comandos y switches (incluye `--to <lang>`). |
+| `gui/app.py` | Interfaz gráfica en tkinter. |
+| `gui/displays.py` | Displays insertables (7 segmentos / LED). |
 
 ---
 
