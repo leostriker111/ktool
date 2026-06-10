@@ -27,5 +27,5 @@ Issues = "https://github.com/leostriker111/ktool/issues"
 kmap = "ktool.cli:main"
 ktool = "ktool.cli:main"
 
-[tool.setuptools]
-packages = ["ktool"]
+[tool.setuptools.packages.find]
+include = ["ktool*"]

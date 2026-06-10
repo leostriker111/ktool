@@ -8,14 +8,14 @@ if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-$src = $PSScriptRoot
+$src = Join-Path $PSScriptRoot ".."
 $dir = Join-Path $env:LOCALAPPDATA "Programs\ktool"
 
 Write-Host "Instalando ktool en: $dir"
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 Copy-Item -Recurse -Force (Join-Path $src "ktool") $dir
-Copy-Item -Force (Join-Path $src "ktool_launcher.py") $dir
+Copy-Item -Force (Join-Path $PSScriptRoot "ktool_launcher.py") $dir
 
 $cmd = @"
 @echo off
