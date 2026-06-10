@@ -6,18 +6,18 @@ import webbrowser
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 
-from . import core, expr
-from .core import TruthTable, default_vars
-from .report import Options, build_report, save_report
-from .simplify import solve_output, shared_terms
+from ..core import table
+from ..core.table import TruthTable, default_vars, MIN_VARS, MAX_VARS, MAX_OUTPUTS
+from ..core import ast as expr
+from ..core.simplify import solve_output, shared_terms
+from ..render.report import Options, build_report, save_report
+from .displays import DisplayWidget
+
+from .. import theme
 
 REPO_URL = "https://github.com/leostriker111/ktool"
 
 CYCLE = {0: 1, 1: "x", "x": 0}
-CELL_BG = {0: "#f3f3f3", 1: "#cdebcd", "x": "#fff0c2"}
-CELL_FG = {0: "#333", 1: "#176117", "x": "#9a6b00"}
-SEL_BG = "#2d6cdf"
-SEL_FG = "#ffffff"
 
 SHORTCUTS = [
     ("Clic en celda", "Selecciona esa celda"),
@@ -79,113 +79,6 @@ def _parse_fill_number(text, rows):
     if val < 0 or val >= (1 << rows):
         raise ValueError(f"el numero no cabe en {rows} bits (las filas de la tabla)")
     return [int(c) for c in format(val, f"0{rows}b")]
-
-
-# ---------- displays insertables ----------
-SEG_OFF = "#2b2b2b"
-SEG_ON = "#39ff62"
-DISP_BG = "#111111"
-NAME_FG = "#cfcf66"
-
-
-def _hbar(x1, x2, y, t):
-    h = t / 2
-    return [x1, y, x1 + h, y - h, x2 - h, y - h, x2, y, x2 - h, y + h, x1 + h, y + h]
-
-
-def _vbar(x, y1, y2, t):
-    h = t / 2
-    return [x, y1, x + h, y1 + h, x + h, y2 - h, x, y2, x - h, y2 - h, x - h, y1 + h]
-
-
-def _seg7_defs():
-    t, xL, xR, yT, yM, yB = 13, 26, 86, 24, 84, 144
-    defs = [
-        ("a", _hbar(xL, xR, yT, t)),
-        ("b", _vbar(xR, yT, yM, t)),
-        ("c", _vbar(xR, yM, yB, t)),
-        ("d", _hbar(xL, xR, yB, t)),
-        ("e", _vbar(xL, yM, yB, t)),
-        ("f", _vbar(xL, yT, yM, t)),
-        ("g", _hbar(xL, xR, yM, t)),
-    ]
-    return defs, 112, 168
-
-
-class DisplayWidget:
-    """Display sencillo (7 segmentos o LED) que enciende segun el estado activo.
-    Cada segmento/LED tiene una etiqueta (editable) que lo conecta con la salida
-    del mismo nombre."""
-
-    def __init__(self, app, parent, kind):
-        self.app = app
-        self.kind = kind
-        self.segments = []  # [{'name','poly','text','tag'}]
-        title = {"7seg": "7 segmentos", "led": "LED"}[kind]
-        self.frame = ttk.Frame(parent, relief="ridge", borderwidth=2, padding=3)
-        self.frame.pack(side=tk.TOP, fill=tk.X, pady=4)
-        head = ttk.Frame(self.frame)
-        head.pack(fill=tk.X)
-        ttk.Label(head, text=title, font=("", 9, "bold")).pack(side=tk.LEFT)
-        ttk.Button(head, text="x", width=2, command=self.remove).pack(side=tk.RIGHT)
-        if kind == "7seg":
-            defs, w, h = _seg7_defs()
-        else:
-            defs, w, h = [], 86, 96
-        self.canvas = tk.Canvas(self.frame, width=w, height=h, bg=DISP_BG, highlightthickness=0)
-        self.canvas.pack()
-        if kind == "7seg":
-            self._draw_segments(defs)
-        else:
-            self._draw_led()
-
-    @staticmethod
-    def _centroid(poly):
-        xs, ys = poly[0::2], poly[1::2]
-        return sum(xs) / len(xs), sum(ys) / len(ys)
-
-    def _add_seg(self, name, poly_id, text_id, tag):
-        seg = {"name": name, "poly": poly_id, "text": text_id, "tag": tag}
-        self.segments.append(seg)
-        self.canvas.tag_bind(tag, "<Button-1>", lambda e, s=seg: self._rename(s))
-
-    def _draw_segments(self, defs):
-        for i, (name, poly) in enumerate(defs):
-            tag = f"s{i}"
-            pid = self.canvas.create_polygon(poly, fill=SEG_OFF, outline="#000", tags=(tag,))
-            cx, cy = self._centroid(poly)
-            tid = self.canvas.create_text(cx, cy, text=name, fill=NAME_FG,
-                                          font=("Consolas", 8, "bold"), tags=(tag,))
-            self._add_seg(name, pid, tid, tag)
-
-    def _draw_led(self):
-        pid = self.canvas.create_oval(18, 14, 68, 64, fill=SEG_OFF, outline="#000", width=2, tags=("L",))
-        tid = self.canvas.create_text(43, 80, text="L", fill=NAME_FG,
-                                      font=("Consolas", 9, "bold"), tags=("L",))
-        self._add_seg("L", pid, tid, "L")
-
-    def _rename(self, seg):
-        new = simpledialog.askstring(
-            "Nombre del segmento/LED",
-            "Se conecta con la salida del mismo nombre:",
-            initialvalue=seg["name"], parent=self.app.root,
-        )
-        if not new or not new.strip():
-            return
-        seg["name"] = new.strip()
-        self.canvas.itemconfig(seg["text"], text=seg["name"])
-        self.app._refresh_displays()
-
-    def relight(self, name_value):
-        for seg in self.segments:
-            on = name_value.get(seg["name"]) == 1
-            self.canvas.itemconfig(seg["poly"], fill=SEG_ON if on else SEG_OFF)
-            self.canvas.itemconfig(seg["text"], fill="#0a0a0a" if on else NAME_FG)
-
-    def remove(self):
-        self.frame.destroy()
-        if self in self.app.displays:
-            self.app.displays.remove(self)
 
 
 class App:
@@ -263,11 +156,11 @@ class App:
         bar.pack(side=tk.TOP, fill=tk.X)
 
         ttk.Label(bar, text="Variables:").pack(side=tk.LEFT)
-        self.sp_vars = ttk.Spinbox(bar, from_=2, to=6, width=3, textvariable=self.nvars)
+        self.sp_vars = ttk.Spinbox(bar, from_=MIN_VARS, to=MAX_VARS, width=3, textvariable=self.nvars)
         self.sp_vars.pack(side=tk.LEFT, padx=(2, 12))
 
         ttk.Label(bar, text="Salidas:").pack(side=tk.LEFT)
-        self.sp_outs = ttk.Spinbox(bar, from_=1, to=32, width=3, textvariable=self.nouts)
+        self.sp_outs = ttk.Spinbox(bar, from_=1, to=MAX_OUTPUTS, width=3, textvariable=self.nouts)
         self.sp_outs.pack(side=tk.LEFT, padx=(2, 6))
         ttk.Button(bar, text="Aplicar", command=self.apply_dims).pack(side=tk.LEFT, padx=(0, 12))
         for sp in (self.sp_vars, self.sp_outs):
@@ -497,8 +390,8 @@ class App:
 
     def rebuild_table(self):
         try:
-            n = max(2, min(6, int(self.nvars.get())))
-            k = max(1, min(32, int(self.nouts.get())))
+            n = max(MIN_VARS, min(MAX_VARS, int(self.nvars.get())))
+            k = max(1, min(MAX_OUTPUTS, int(self.nouts.get())))
         except (tk.TclError, ValueError):
             return
         self._rebuilding = True
@@ -563,7 +456,7 @@ class App:
             for oi in range(k):
                 v = self.values[oi][r]
                 cell = tk.Label(self.table_frame, text=str(v), width=4, relief="solid",
-                                borderwidth=1, bg=CELL_BG[v], fg=CELL_FG[v])
+                                borderwidth=1, bg=theme.CELL_BG[v], fg=theme.CELL_FG[v])
                 cell.grid(row=gr, column=out_start + oi, sticky="nsew")
                 cell.bind("<Button-1>", lambda e, o=oi, row=r: self.on_press(o, row, False))
                 cell.bind("<Shift-Button-1>", lambda e, o=oi, row=r: self.on_press(o, row, True))
@@ -595,9 +488,9 @@ class App:
             return
         v = self.values[oi][r]
         if (oi, r) in self.selected:
-            w.config(text=str(v), bg=SEL_BG, fg=SEL_FG)
+            w.config(text=str(v), bg=theme.SEL_BG, fg=theme.SEL_FG)
         else:
-            w.config(text=str(v), bg=CELL_BG[v], fg=CELL_FG[v])
+            w.config(text=str(v), bg=theme.CELL_BG[v], fg=theme.CELL_FG[v])
 
     def _set_selection(self, new):
         diff = new ^ self.selected
@@ -738,7 +631,7 @@ class App:
 
     # ---------- acciones ----------
     def _current_table(self):
-        n = max(2, min(6, int(self.nvars.get())))
+        n = max(MIN_VARS, min(MAX_VARS, int(self.nvars.get())))
         variables = default_vars(n)
         outputs = {self.output_names[oi]: list(self.values[oi]) for oi in range(len(self.values))}
         notes = None
@@ -751,7 +644,7 @@ class App:
         text = self.expr_entry.get().strip()
         if not text:
             return
-        n = max(2, min(6, int(self.nvars.get())))
+        n = max(MIN_VARS, min(MAX_VARS, int(self.nvars.get())))
         variables = default_vars(n)
         rows = 1 << n
         target = self.expr_target.get()
@@ -845,7 +738,3 @@ def launch():
     root = tk.Tk()
     App(root)
     root.mainloop()
-
-
-if __name__ == "__main__":
-    launch()

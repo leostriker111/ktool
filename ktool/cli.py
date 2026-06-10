@@ -14,10 +14,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import core, langs
-from .core import TruthTable
-from .report import Options, build_report, save_report
-from .simplify import solve_output, shared_terms
+from .core import table
+from .core.table import TruthTable
+from .core.simplify import solve_output, shared_terms
+from .render import codegen
+from .render.report import Options, build_report, save_report
 
 _LANG_ALIASES = {"math": "Matematico", "matematicas": "Matematico", "mate": "Matematico",
                  "py": "Python", "tex": "LaTeX"}
@@ -28,7 +29,7 @@ def _resolve_langs(args):
         return []
     if not args.langs:
         return None
-    canon = {name.lower(): name for name in langs.LANG_ORDER}
+    canon = {name.lower(): name for name in codegen.LANG_ORDER}
     out = []
     for tok in args.langs.replace(",", " ").split():
         name = canon.get(tok.lower()) or _LANG_ALIASES.get(tok.lower())
@@ -78,7 +79,7 @@ def _table_from_args(args):
         return TruthTable.from_expression(args.expr, nvars=args.vars, name=args.name)
 
     if args.truth is not None:
-        vals = core.parse_truth_string(args.truth)
+        vals = table.parse_truth_string(args.truth)
         n = (len(vals) - 1).bit_length()
         if 1 << n != len(vals):
             raise SystemExit(f"el vector --truth tiene {len(vals)} valores; debe ser potencia de 2")
@@ -89,8 +90,8 @@ def _table_from_args(args):
     if args.minterms is not None:
         if not args.vars:
             raise SystemExit("usa -n/--vars con -m/--minterms")
-        mins = core.parse_index_list(args.minterms)
-        dcs = core.parse_index_list(args.dontcares) if args.dontcares else []
+        mins = table.parse_index_list(args.minterms)
+        dcs = table.parse_index_list(args.dontcares) if args.dontcares else []
         return TruthTable.from_minterms(args.vars, mins, dcs, name=args.name)
 
     raise SystemExit("nada que resolver: usa -e, -m o --truth (o 'kmap gui'). Mira 'kmap -h'.")

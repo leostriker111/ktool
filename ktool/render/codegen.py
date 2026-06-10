@@ -1,8 +1,7 @@
 """Exporta una ecuacion (Solution) a varios lenguajes de descripcion."""
 
 from __future__ import annotations
-
-from .simplify import literal_pairs
+from ..core.simplify import literal_pairs
 
 LANG_ORDER = ["Matematico", "Verilog", "VHDL", "ABEL", "Logisim", "C", "Python", "LaTeX"]
 
