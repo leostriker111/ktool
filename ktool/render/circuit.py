@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-from .simplify import term_literals
+from ..core.simplify import term_literals
+from ._util import _esc
 
 
-def _esc(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("'", "&#39;")
-
-
-WIRE_COLORS = [
-    "#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#ff7f0e",
-    "#17becf", "#8c564b", "#e377c2", "#bcbd22", "#393b79",
-    "#637939", "#8c6d31", "#843c39", "#7b4173", "#5254a3",
-]
+from .. import theme
 
 
 def _and_path(x, y, w, h):
@@ -397,7 +390,7 @@ def build_shared_circuit(named_sops):
         s.append(f'<line x1="{x1:.0f}" y1="{y1:.1f}" x2="{x2:.0f}" y2="{y2:.1f}" stroke="{color}" stroke-width="1.6"/>')
 
     for ni, (key, net) in enumerate(net_items):
-        color = WIRE_COLORS[ni % len(WIRE_COLORS)]
+        color = theme.WIRE_COLORS[ni % len(theme.WIRE_COLORS)]
         cx = chan_x0 + track_of[ni] * chan_step
         ymin, ymax = net["span"]
         sy = src_y_of(key)

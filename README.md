@@ -30,7 +30,7 @@ componentes.
 - Acepta minterminos en **decimal, hexadecimal (`0x`) o binario (`0b`)**.
 - Todo en **Python puro**, sin dependencias externas.
 
-La explicación de cómo está construido por dentro está en [DESIGN.md](DESIGN.md).
+La explicación de cómo está construido por dentro está en [DESIGN.md](docs/DESIGN.md).
 
 ---
 
@@ -62,10 +62,10 @@ Esto deja disponibles los comandos `kmap` y `ktool`.
 ```powershell
 git clone https://github.com/leostriker111/ktool.git
 cd ktool
-.\install.ps1
+packaging\install.ps1
 ```
 
-`install.ps1` copia la herramienta a tu carpeta de usuario y la agrega al `PATH`
+`packaging\install.ps1` copia la herramienta a tu carpeta de usuario y la agrega al `PATH`
 (requiere tener Python instalado).
 
 ---

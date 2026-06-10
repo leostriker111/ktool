@@ -6,18 +6,9 @@ import os
 import tempfile
 import webbrowser
 
-from .simplify import solve_output, shared_terms
-from . import render_kmap, render_circuit, langs
-
-
-def _esc(s):
-    return (
-        str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    )
-
-
-def _attr(s):
-    return _esc(s).replace('"', "&quot;").replace("\n", "&#10;")
+from ..core.simplify import solve_output, shared_terms
+from . import kmap, circuit, codegen
+from ._util import _esc, _attr
 
 
 class Options:
@@ -150,13 +141,13 @@ def _languages_section(table, solutions, opt_langs):
     """Bloque por lenguaje con TODAS las salidas juntas (un copiar por lenguaje)."""
     if opt_langs is not None and len(opt_langs) == 0:
         return ""
-    chosen = opt_langs or langs.LANG_ORDER
+    chosen = opt_langs or codegen.LANG_ORDER
     parts = ["<h2>Ecuaciones en varios lenguajes</h2>",
              "<p class='hint'>Cada bloque trae todas las salidas en ese lenguaje; el boton copia el bloque completo.</p>"]
     for lang in chosen:
-        if lang not in langs.SPECS:
+        if lang not in codegen.OPS:
             continue
-        lines = [langs.render(solutions[name]["best"], name, lang) for name in table.outputs]
+        lines = [codegen.render(solutions[name]["best"], name, lang) for name in table.outputs]
         blob = "\n".join(lines)
         parts.append("<div class='langblock'>")
         parts.append(
@@ -258,10 +249,10 @@ def build_report(table, opt=None):
                 seen_pats.add(key)
                 body.append("<div class='mapwrap'>")
                 body.append(f"<div class='maplabel'>{label}</div>")
-                body.append(render_kmap.kmap_svg(vals, table.variables, pats))
+                body.append(kmap.kmap_svg(vals, table.variables, pats))
                 if pats:
                     body.append("<div class='legend'>"
-                                + render_kmap.group_legend(pats, table.variables, "sop")
+                                + kmap.group_legend(pats, table.variables, "sop")
                                 + "</div>")
                 body.append("</div>")
             body.append("</div>")
@@ -271,7 +262,7 @@ def build_report(table, opt=None):
             for form in forms:
                 body.append("<div class='cwrap'>")
                 body.append(f"<div class='maplabel'>Circuito {form.upper()}</div>")
-                body.append(render_circuit.circuit_svg(sol[form], name))
+                body.append(circuit.circuit_svg(sol[form], name))
                 body.append("</div>")
             body.append("</div>")
 
@@ -280,7 +271,7 @@ def build_report(table, opt=None):
     # circuito completo combinado (SOP con compuertas compartidas)
     if opt.circuit and any(solutions[n]["sop"].const is None for n in table.outputs):
         named_sops = [(n, solutions[n]["sop"]) for n in table.outputs]
-        svg, gates = render_circuit.build_shared_circuit(named_sops)
+        svg, gates = circuit.build_shared_circuit(named_sops)
         body.append("<h2>Circuito completo sugerido</h2>")
         body.append("<p class='hint'>Realizacion en SOP de todas las salidas con las compuertas AND "
                     "compartidas (los atajos). Para una salida donde convenga XOR o POS, revisa su "

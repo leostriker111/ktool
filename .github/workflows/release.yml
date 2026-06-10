@@ -22,17 +22,17 @@ jobs:
         run: pip install pyinstaller
 
       - name: Construir ejecutable
-        run: pyinstaller --onefile --name kmap ktool_launcher.py
+        run: pyinstaller --onefile --name kmap packaging\ktool_launcher.py
 
       - name: Instalar Inno Setup
         run: choco install innosetup --no-progress -y
 
       - name: Construir instalador
-        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\ktool.iss'
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\setup.iss'
 
       - name: Publicar en el release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/kmap.exe
-            installer/Output/ktool-setup.exe
+            packaging/Output/ktool-setup.exe

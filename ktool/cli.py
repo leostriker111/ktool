@@ -14,13 +14,15 @@ from __future__ import annotations
 import argparse
 import sys
 
-from . import core, langs
-from .core import TruthTable
-from .report import Options, build_report, save_report
-from .simplify import solve_output, shared_terms
+from .core import table
+from .core.table import TruthTable
+from .core.simplify import solve_output, shared_terms
+from .render import codegen
+from .render.report import Options, build_report, save_report
 
-_LANG_ALIASES = {"math": "Matematico", "matematicas": "Matematico", "mate": "Matematico",
-                 "py": "Python", "tex": "LaTeX"}
+def _canon_lang(tok):
+    canon = {name.lower(): name for name in codegen.LANG_ORDER}
+    return canon.get(tok.lower()) or codegen.LANG_ALIASES.get(tok.lower())
 
 
 def _resolve_langs(args):
@@ -28,10 +30,9 @@ def _resolve_langs(args):
         return []
     if not args.langs:
         return None
-    canon = {name.lower(): name for name in langs.LANG_ORDER}
     out = []
     for tok in args.langs.replace(",", " ").split():
-        name = canon.get(tok.lower()) or _LANG_ALIASES.get(tok.lower())
+        name = _canon_lang(tok)
         if not name:
             print(f"aviso: lenguaje desconocido '{tok}' (ignorado)")
         elif name not in out:
@@ -66,6 +67,7 @@ def _build_parser():
     p.add_argument("--gates-only", action="store_true", help="solo compuertas (sin K-map ni tabla)")
     p.add_argument("--langs", help="lenguajes a incluir, separados por coma (ej: verilog,c,vhdl)")
     p.add_argument("--no-langs", action="store_true", help="no incluir el bloque de ecuaciones por lenguaje")
+    p.add_argument("--to", help="traducir la expresion -e directo a un lenguaje (ej: verilog) sin minimizar")
     p.add_argument("--text", action="store_true", help="solo imprimir ecuaciones en la terminal")
     p.add_argument("--out", help="ruta del documento HTML a generar")
     p.add_argument("--open", action="store_true", help="abrir el documento en el navegador")
@@ -78,7 +80,7 @@ def _table_from_args(args):
         return TruthTable.from_expression(args.expr, nvars=args.vars, name=args.name)
 
     if args.truth is not None:
-        vals = core.parse_truth_string(args.truth)
+        vals = table.parse_truth_string(args.truth)
         n = (len(vals) - 1).bit_length()
         if 1 << n != len(vals):
             raise SystemExit(f"el vector --truth tiene {len(vals)} valores; debe ser potencia de 2")
@@ -89,8 +91,8 @@ def _table_from_args(args):
     if args.minterms is not None:
         if not args.vars:
             raise SystemExit("usa -n/--vars con -m/--minterms")
-        mins = core.parse_index_list(args.minterms)
-        dcs = core.parse_index_list(args.dontcares) if args.dontcares else []
+        mins = table.parse_index_list(args.minterms)
+        dcs = table.parse_index_list(args.dontcares) if args.dontcares else []
         return TruthTable.from_minterms(args.vars, mins, dcs, name=args.name)
 
     raise SystemExit("nada que resolver: usa -e, -m o --truth (o 'kmap gui'). Mira 'kmap -h'.")
@@ -120,6 +122,15 @@ def main(argv=None):
     if args.cmd == "gui":
         from .gui import launch
         launch()
+        return
+
+    if args.to:
+        if not args.expr:
+            raise SystemExit("--to necesita una expresion con -e/--expr")
+        lang = _canon_lang(args.to)
+        if not lang:
+            raise SystemExit(f"lenguaje desconocido para --to: '{args.to}'")
+        print(codegen.translate(args.expr, args.name, lang))
         return
 
     table = _table_from_args(args)

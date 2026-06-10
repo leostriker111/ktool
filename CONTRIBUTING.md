@@ -36,4 +36,4 @@ python -m ktool -n 4 -m 0,1,2,3,8,9 --out salida.html
 - Nombres y mensajes en español, como el resto del proyecto.
 - Cambios enfocados: un PR, una cosa.
 
-La estructura interna y los algoritmos están explicados en [DESIGN.md](DESIGN.md).
+La estructura interna y los algoritmos están explicados en [DESIGN.md](docs/DESIGN.md).

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ktool"
-version = "0.3.0"
+version = "0.4.0"
 description = "Simplificador de logica digital: mapas de Karnaugh, SOP/POS, compuertas y reuso de terminos"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -27,5 +27,5 @@ Issues = "https://github.com/leostriker111/ktool/issues"
 kmap = "ktool.cli:main"
 ktool = "ktool.cli:main"
 
-[tool.setuptools]
-packages = ["ktool"]
+[tool.setuptools.packages.find]
+include = ["ktool*"]

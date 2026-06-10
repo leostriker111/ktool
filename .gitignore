@@ -11,3 +11,4 @@ installer/Output/
 venv/
 .idea/
 .vscode/
+.specstory/
