@@ -1,0 +1,16 @@
+CARPETA: docs/archivo  (el baul)
+================================
+
+Aqui se entierra todo lo que se uso en algun momento y podria valer algo en el
+futuro: planes de reestructura, notas de diseno viejas, propuestas, decisiones,
+bocetos. No es documentacion viva (esa va en docs/ a secas y en el README); es el
+archivo historico.
+
+Regla simple para cada documento que entre aqui:
+  - que ponga POR QUE se creo,
+  - en QUE version se uso o se aplico,
+  - y su ESTADO (propuesta / aplicado / descartado).
+
+Contenido:
+  - PLAN_REESTRUCTURA.txt  -> plan de reordenar a subpaquetes + traductor AST.
+                              Creado en v0.3.0. Estado: propuesta.
