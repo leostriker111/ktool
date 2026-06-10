@@ -1,5 +1,11 @@
 # Cambios
 
+## 0.4.0
+
+- Reestructura en subpaquetes: core/render/gui.
+- Traductor de lenguajes reescrito sobre AST (lexer→parser→ast→codegen):
+  parentesis por precedencia y traduccion de expresiones libres (CLI --to, GUI).
+
 ## 0.3.0
 
 - Displays insertables en la interfaz (menu Insertar > Display): 7 segmentos y LED.
