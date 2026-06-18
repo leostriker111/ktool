@@ -24,9 +24,14 @@
 - GUI: menú **Archivo → Nuevo / Abrir / Guardar** (guarda toda la mesa de trabajo:
   tabla, nombres, notas, forma y los displays con sus etiquetas).
 - GUI: **editor de máquinas de estado** (menú *Máquina de estados (FSM)...*).
-  Ventana con formulario (tipo, entradas, bits, salidas, flip-flop) y dos áreas
-  de texto (estados y transiciones); genera el reporte, carga y guarda el fuente
+  Vista embebida (cubre la tabla, con botón Volver), entrada por **tablas** de
+  estados y transiciones, **grafo en vivo** que se redibuja al editar y **preview
+  de 7 segmentos** del estado activo. Genera el reporte, carga y guarda el fuente
   `.ktool.json`. Trae un ejemplo precargado que corre al primer clic.
+- Reporte FSM: `--form sop|pos|auto|both` (cada señal en la forma elegida) y
+  sección **Circuito completo (con flip-flops)** antes del bloque de lenguajes:
+  lógica de excitación combinada + banco de flip-flops dibujados como cajas +
+  decodificador. Los rieles del circuito respetan el orden de entrada.
 - GUI: **autosave de fondo** + **papelera**. Mientras trabajas se va guardando un
   archivo volátil; al guardar se persiste donde indiques; si cierras sin guardar,
   va a la papelera y se recupera con *Archivo → Recuperar trabajo*.

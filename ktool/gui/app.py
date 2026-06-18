@@ -172,8 +172,10 @@ class App:
         self.root.config(menu=menubar)
 
     def open_fsm(self):
-        from .fsm_view import FsmWindow
-        FsmWindow(self.root)
+        from .fsm_view import FsmView
+        if getattr(self, "_fsm_view", None) is None:
+            self._fsm_view = FsmView(self)
+        self._fsm_view.show()
 
     # ---------- controles ----------
     def _build_controls(self):
