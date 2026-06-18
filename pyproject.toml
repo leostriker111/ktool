@@ -24,8 +24,9 @@ Homepage = "https://github.com/leostriker111/ktool"
 Issues = "https://github.com/leostriker111/ktool/issues"
 
 [project.scripts]
-kmap = "ktool.cli:main"
+# 'ktool' es el comando principal; 'kmap' se mantiene como alias historico.
 ktool = "ktool.cli:main"
+kmap = "ktool.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["ktool*"]

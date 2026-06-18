@@ -10,6 +10,9 @@ vez, elige la forma más barata por número de compuertas, detecta XOR/XNOR y
 señala los términos que se pueden reutilizar entre salidas para ahorrar
 componentes.
 
+> **El comando se llama `ktool`.** `kmap` es un alias histórico (el proyecto nació
+> haciendo solo mapas de Karnaugh) y sigue funcionando igual; ambos hacen lo mismo.
+
 ---
 
 ## Qué hace
@@ -40,7 +43,7 @@ La explicación de cómo está construido por dentro está en [DESIGN.md](docs/D
 
 Descarga el instalador más reciente desde la página de
 [Releases](https://github.com/leostriker111/ktool/releases/latest) y ejecútalo.
-El instalador agrega `kmap` al `PATH`, así que después puedes llamarlo desde
+El instalador agrega `ktool` al `PATH`, así que después puedes llamarlo desde
 cualquier terminal.
 
 O en una línea de PowerShell (descarga y lanza el instalador más reciente):
@@ -55,7 +58,7 @@ irm https://raw.githubusercontent.com/leostriker111/ktool/main/get-ktool.ps1 | i
 pip install git+https://github.com/leostriker111/ktool.git
 ```
 
-Esto deja disponibles los comandos `kmap` y `ktool`.
+Esto deja disponibles los comandos `ktool` y `kmap` (alias).
 
 ### Opción C — Desde el código fuente
 
@@ -73,13 +76,13 @@ packaging\install.ps1
 ## Uso por terminal
 
 ```powershell
-kmap -e "A'B + C" --open                 # construir tabla desde una expresion
-kmap -n 3 -m 1,4,5,6 -d 2,7              # minterminos y don't cares
-kmap -n 4 -m 0x1,0b11,5 --text          # mezcla de bases, ecuaciones en consola
-kmap -n 3 --truth 01x011x1 --form both  # vector de salida directo
-kmap ... --gates-only                    # solo compuertas (sin K-map ni tabla)
-kmap gui                                  # abrir la interfaz grafica
-kmap -h                                   # ayuda completa
+ktool -e "A'B + C" --open                 # construir tabla desde una expresion
+ktool -n 3 -m 1,4,5,6 -d 2,7             # minterminos y don't cares
+ktool -n 4 -m 0x1,0b11,5 --text         # mezcla de bases, ecuaciones en consola
+ktool -n 3 --truth 01x011x1 --form both # vector de salida directo
+ktool ... --gates-only                   # solo compuertas (sin K-map ni tabla)
+ktool gui                                 # abrir la interfaz grafica
+ktool -h                                  # ayuda completa
 ```
 
 Sin instalar, desde la carpeta del proyecto, usa `python -m ktool ...`.
@@ -121,7 +124,7 @@ Las variables son letras `A` a `F`. Precedencia: NOT, luego AND, luego XOR, lueg
 ## Interfaz gráfica
 
 ```powershell
-kmap gui
+ktool gui
 ```
 
 Tabla al estilo de un solucionador clásico. Arriba eliges el número de variables y

@@ -1,12 +1,14 @@
 """CLI de ktool.
 
+El comando es `ktool` (alias historico: `kmap`; ambos hacen lo mismo).
+
 Ejemplos:
-    kmap gui
-    kmap -e "A'B + C" --open
-    kmap -n 3 -m 1,4,5,6 -d 2,7
-    kmap -n 3 --truth 01x011x1 --form both
-    kmap -e "A^B^C" --text
-    kmap -n 4 -m 0x1,0b11,5 --no-kmap --out salida.html
+    ktool gui
+    ktool -e "A'B + C" --open
+    ktool -n 3 -m 1,4,5,6 -d 2,7
+    ktool -n 3 --truth 01x011x1 --form both
+    ktool -e "A^B^C" --text
+    ktool -n 4 -m 0x1,0b11,5 --no-kmap --out salida.html
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ def _resolve_langs(args):
 
 def _build_parser():
     p = argparse.ArgumentParser(
-        prog="kmap",
+        prog="ktool",
         description="Simplificador de logica digital: K-map, SOP/POS, compuertas y reuso de terminos.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
@@ -95,7 +97,7 @@ def _table_from_args(args):
         dcs = table.parse_index_list(args.dontcares) if args.dontcares else []
         return TruthTable.from_minterms(args.vars, mins, dcs, name=args.name)
 
-    raise SystemExit("nada que resolver: usa -e, -m o --truth (o 'kmap gui'). Mira 'kmap -h'.")
+    raise SystemExit("nada que resolver: usa -e, -m o --truth (o 'ktool gui'). Mira 'ktool -h'.")
 
 
 def _print_text(table):
