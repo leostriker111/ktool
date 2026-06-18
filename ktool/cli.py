@@ -9,6 +9,8 @@ Ejemplos:
     ktool -n 3 --truth 01x011x1 --form both
     ktool -e "A^B^C" --text
     ktool fsm maquina.json --ff JK        # maquina de estados (secuencial)
+
+Operadores en -e:  AND = ab   OR = a+b   NOT = a'   XOR = a^b   (variables A..F)
 """
 
 from __future__ import annotations
@@ -21,6 +23,32 @@ from .core.table import TruthTable
 from .core.simplify import solve_output, shared_terms
 from .render import codegen
 from .render.report import Options, build_report, save_report
+
+_FSM_EPILOG = """\
+Formato del archivo JSON (maquina de estados):
+
+  {
+    "name": "Mi maquina",
+    "kind": "moore",                    # moore | mealy
+    "inputs": ["h"],                    # [] = contador libre (solo reloj)
+    "state_bits": ["Q2", "Q1", "Q0"],   # flip-flops, MSB primero
+    "outputs": ["a","b","c","d","e","f","g"],
+    "states": [
+      {"name": "S7", "code": "111", "label": "R", "out": "0000101"}
+    ],
+    "transitions": [
+      {"from": "S7", "in": "0", "to": "S6"}
+    ]
+  }
+
+  code  = codificacion binaria del estado     out = salida en ese estado (Moore)
+  label = etiqueta para el diagrama           in  = bits de entrada ("" si no hay)
+
+Hay ejemplos listos para correr en la carpeta ejemplos/ del repositorio.
+
+Ejemplo:
+    ktool fsm maquina.json --ff T --langs verilog,vhdl
+"""
 
 def _canon_lang(tok):
     canon = {name.lower(): name for name in codegen.LANG_ORDER}
@@ -52,7 +80,9 @@ def _build_parser():
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("gui", help="abre la interfaz grafica")
 
-    fsm = sub.add_parser("fsm", help="disena una maquina de estados desde un archivo JSON")
+    fsm = sub.add_parser("fsm", help="disena una maquina de estados desde un archivo JSON",
+                         formatter_class=argparse.RawDescriptionHelpFormatter,
+                         epilog=_FSM_EPILOG)
     fsm.add_argument("file", help="archivo .json con la maquina (estados y transiciones)")
     fsm.add_argument("--ff", default="JK", help="tipo de flip-flop: D, T, JK o SR (default JK)")
     fsm.add_argument("--out", help="ruta del HTML a generar")
