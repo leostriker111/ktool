@@ -1,5 +1,25 @@
 # Cambios
 
+## 0.5.0b1 (beta — rama `beta`)
+
+> En desarrollo. La rama `main` sigue en 0.4.0; esta versión vive en la rama
+> `beta` para revisarse en GitHub sin afectar la instalación estable.
+> Probar con: `pip install git+https://github.com/leostriker111/ktool.git@beta`
+
+- Máquinas de estado síncronas (circuitos secuenciales). Subpaquete `fsm` con el
+  modelo (estados, codificación, transiciones) y las tablas de excitación de
+  flip-flops D, T, JK y SR; el tipo de flip-flop se elige.
+- Reutiliza el motor de minimización: cada entrada de flip-flop y cada salida es
+  una tabla de verdad que pasa por Quine-McCluskey (SOP/POS/XOR).
+- Documento nuevo: diagrama de estados en SVG, tabla de transiciones/excitación,
+  mapas de Karnaugh y ecuaciones de excitación, decodificador de salida con
+  display de 7 segmentos por estado, y circuito combinado.
+- CLI: `kmap fsm maquina.json --ff JK` (también D, T, SR) desde un archivo JSON.
+- `seg7_strip_svg`: dibuja una palabra/número completo de 7 segmentos en un SVG.
+- Ejemplos de muestra en `ejemplos/`: contador decimal 0-9 (decoder BCD con
+  don't cares) y letrero giratorio "tool". Cada uno trae `diagrama.svg` y la
+  tira de displays en SVG (se ven directo en GitHub).
+
 ## 0.4.0
 
 - Reestructura en subpaquetes: core/render/gui.

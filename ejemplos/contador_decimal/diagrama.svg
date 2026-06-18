@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="760" font-family="Georgia, serif">
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+<path d="M 406.7,101.0 Q 457.7,141.0 522.4,138.6" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 565.6,170.0 Q 583.3,232.3 637.1,268.4" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 653.6,319.2 Q 631.3,380.0 653.6,440.8" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 637.1,491.6 Q 583.3,527.7 565.6,590.0" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 522.4,621.4 Q 457.7,619.0 406.7,659.0" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 353.3,659.0 Q 302.3,619.0 237.6,621.4" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 194.4,590.0 Q 176.7,527.7 122.9,491.6" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 106.4,440.8 Q 128.7,380.0 106.4,319.2" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 122.9,268.4 Q 176.7,232.3 194.4,170.0" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<path d="M 237.6,138.6 Q 302.3,141.0 353.3,101.0" fill="none" stroke="#444" stroke-width="1.6" marker-end="url(#ah)"/>
+<circle cx="380.0" cy="80.0" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="380.0" y="77.0" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">0</text>
+<text x="380.0" y="94.0" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0000</text>
+<circle cx="556.3" cy="137.3" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="556.3" y="134.3" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">1</text>
+<text x="556.3" y="151.3" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0001</text>
+<circle cx="665.3" cy="287.3" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="665.3" y="284.3" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">2</text>
+<text x="665.3" y="301.3" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0010</text>
+<circle cx="665.3" cy="472.7" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="665.3" y="469.7" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">3</text>
+<text x="665.3" y="486.7" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0011</text>
+<circle cx="556.3" cy="622.7" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="556.3" y="619.7" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">4</text>
+<text x="556.3" y="636.7" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0100</text>
+<circle cx="380.0" cy="680.0" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="380.0" y="677.0" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">5</text>
+<text x="380.0" y="694.0" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0101</text>
+<circle cx="203.7" cy="622.7" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="203.7" y="619.7" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">6</text>
+<text x="203.7" y="636.7" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0110</text>
+<circle cx="94.7" cy="472.7" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="94.7" y="469.7" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">7</text>
+<text x="94.7" y="486.7" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">0111</text>
+<circle cx="94.7" cy="287.3" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="94.7" y="284.3" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">8</text>
+<text x="94.7" y="301.3" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">1000</text>
+<circle cx="203.7" cy="137.3" r="34" fill="#eef4ff" stroke="#33518f" stroke-width="2"/>
+<text x="203.7" y="134.3" font-size="17" font-weight="bold" text-anchor="middle" fill="#1a2a52">9</text>
+<text x="203.7" y="151.3" font-size="11" text-anchor="middle" fill="#5a6a8a" font-family="Consolas, monospace">1001</text>
+</svg>

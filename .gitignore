@@ -12,3 +12,4 @@ venv/
 .idea/
 .vscode/
 .specstory/
+docs_priv/

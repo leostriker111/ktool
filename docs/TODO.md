@@ -30,11 +30,21 @@
 
 
 
-## Release 3 — Maquinas de estado (en diseño)
+## Release 3 — Maquinas de estado (HECHO v0.5.0)
 
-Objetivo: que ktool reciba un diagrama / tabla de estados y entregue los pasos
-completos de diseño de una maquina de estados sincrona, reutilizando el motor de
-minimizacion que ya existe.
+Implementado: subpaquete `fsm` (modelo + flip-flops D/T/JK/SR), render del
+diagrama de estados y display 7 seg en SVG, `render/fsm_report.py` y subcomando
+`kmap fsm maquina.json --ff JK`. Entrada por JSON. Ejemplo en
+`ejemplos/contador_reprobar/`.
+
+Pendiente de esta linea: minimizacion de estados (tabla de implicaciones) antes
+de asignar, encodings Gray/one-hot, captura de la maquina desde la GUI, y un
+esquematico a nivel flip-flop (hoy se dibuja la logica combinacional de cada
+entrada y el circuito combinado).
+
+Objetivo (original): que ktool reciba un diagrama / tabla de estados y entregue
+los pasos completos de diseño de una maquina de estados sincrona, reutilizando el
+motor de minimizacion que ya existe.
 
 ### Flujo previsto
 

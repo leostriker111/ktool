@@ -50,6 +50,16 @@ def _build_parser():
     sub = p.add_subparsers(dest="cmd")
     sub.add_parser("gui", help="abre la interfaz grafica")
 
+    fsm = sub.add_parser("fsm", help="disena una maquina de estados desde un archivo JSON")
+    fsm.add_argument("file", help="archivo .json con la maquina (estados y transiciones)")
+    fsm.add_argument("--ff", default="JK", help="tipo de flip-flop: D, T, JK o SR (default JK)")
+    fsm.add_argument("--out", help="ruta del HTML a generar")
+    fsm.add_argument("--no-open", action="store_true", help="no abrir el navegador")
+    fsm.add_argument("--no-circuit", action="store_true", help="no dibujar circuitos")
+    fsm.add_argument("--langs", help="lenguajes a incluir (ej: verilog,vhdl)")
+    fsm.add_argument("--no-langs", action="store_true", help="omitir bloque de lenguajes")
+    fsm.add_argument("--title", help="titulo del documento")
+
     # opciones de entrada (comando por defecto = resolver)
     p.add_argument("-n", "--vars", type=int, help="numero de variables (2-6)")
     p.add_argument("-e", "--expr", help="expresion booleana (ej: \"A'B + C\")")
@@ -122,6 +132,23 @@ def main(argv=None):
     if args.cmd == "gui":
         from .gui import launch
         launch()
+        return
+
+    if args.cmd == "fsm":
+        from .fsm import Machine
+        from .render.fsm_report import build_fsm_report, save_report
+        try:
+            machine = Machine.load(args.file)
+            html = build_fsm_report(
+                machine, ff_kind=args.ff, title=args.title,
+                langs=_resolve_langs(args), circuit_on=not args.no_circuit,
+            )
+        except FileNotFoundError:
+            raise SystemExit(f"no se encontro el archivo: {args.file}")
+        except (ValueError, KeyError) as e:
+            raise SystemExit(f"maquina invalida: {e}")
+        path = save_report(html, args.out, open_browser=not args.no_open)
+        print(f"documento generado: {path}")
         return
 
     if args.to:
