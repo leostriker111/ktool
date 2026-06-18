@@ -1,5 +1,5 @@
 # Instala ktool desde el codigo fuente (requiere Python en el PATH).
-# Copia el paquete a la carpeta de usuario, crea el comando 'kmap' y lo agrega al PATH.
+# Copia el paquete a la carpeta de usuario, crea el comando 'ktool' (y el alias 'kmap') y lo agrega al PATH.
 
 $ErrorActionPreference = "Stop"
 
@@ -34,5 +34,6 @@ if ($userPath -notlike "*$dir*") {
 
 Write-Host ""
 Write-Host "Listo. Abre una terminal nueva y prueba:" -ForegroundColor Green
-Write-Host "    kmap -e `"A'B + C`" --open"
-Write-Host "    kmap gui"
+Write-Host "    ktool -e `"A'B + C`" --open"
+Write-Host "    ktool gui"
+Write-Host "    (el comando 'kmap' sigue funcionando como alias)"
