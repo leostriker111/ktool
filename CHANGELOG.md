@@ -23,6 +23,10 @@
   previos ya son fuentes válidos).
 - GUI: menú **Archivo → Nuevo / Abrir / Guardar** (guarda toda la mesa de trabajo:
   tabla, nombres, notas, forma y los displays con sus etiquetas).
+- GUI: **editor de máquinas de estado** (menú *Máquina de estados (FSM)...*).
+  Ventana con formulario (tipo, entradas, bits, salidas, flip-flop) y dos áreas
+  de texto (estados y transiciones); genera el reporte, carga y guarda el fuente
+  `.ktool.json`. Trae un ejemplo precargado que corre al primer clic.
 - GUI: **autosave de fondo** + **papelera**. Mientras trabajas se va guardando un
   archivo volátil; al guardar se persiste donde indiques; si cierras sin guardar,
   va a la papelera y se recupera con *Archivo → Recuperar trabajo*.

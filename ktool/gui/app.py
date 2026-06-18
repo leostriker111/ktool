@@ -159,6 +159,8 @@ class App:
         m_ins.add_command(label="Quitar todos", command=self.clear_displays)
         menubar.add_cascade(label="Insertar", menu=m_ins)
 
+        menubar.add_command(label="Maquina de estados (FSM)...", command=self.open_fsm)
+
         m_help = tk.Menu(menubar, tearoff=0)
         m_help.add_command(label="Guia rapida", command=self.show_guide)
         m_help.add_command(label="Atajos de teclado", command=self.show_shortcuts)
@@ -168,6 +170,10 @@ class App:
         menubar.add_cascade(label="Ayuda", menu=m_help)
 
         self.root.config(menu=menubar)
+
+    def open_fsm(self):
+        from .fsm_view import FsmWindow
+        FsmWindow(self.root)
 
     # ---------- controles ----------
     def _build_controls(self):
@@ -439,9 +445,10 @@ class App:
         if ktio.doc_type(src) == "fsm":
             messagebox.showinfo(
                 "Es una maquina de estados",
-                "Ese archivo es una maquina (FSM). Por ahora abrela por terminal:\n\n"
-                f'    ktool fsm "{path}" --ff JK\n\n'
-                "La pestana de FSM en la interfaz viene en la siguiente version.")
+                "Ese archivo es una maquina (FSM). Abrela desde el menu "
+                "'Maquina de estados (FSM)...' con el boton 'Cargar .json', "
+                "o por terminal:\n\n"
+                f'    ktool fsm "{path}" --ff JK')
             return
         self._park_current()
         try:
