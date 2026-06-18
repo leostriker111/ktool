@@ -85,6 +85,8 @@ def _build_parser():
                          epilog=_FSM_EPILOG)
     fsm.add_argument("file", help="archivo .json con la maquina (estados y transiciones)")
     fsm.add_argument("--ff", default="JK", help="tipo de flip-flop: D, T, JK o SR (default JK)")
+    fsm.add_argument("--form", choices=["sop", "pos", "auto", "both"], default="auto",
+                     help="forma de las ecuaciones/circuitos (default auto = la mas barata)")
     fsm.add_argument("--out", help="ruta del HTML a generar")
     fsm.add_argument("--no-open", action="store_true", help="no abrir el navegador")
     fsm.add_argument("--no-circuit", action="store_true", help="no dibujar circuitos")
@@ -174,6 +176,7 @@ def main(argv=None):
             html = build_fsm_report(
                 machine, ff_kind=args.ff, title=args.title,
                 langs=_resolve_langs(args), circuit_on=not args.no_circuit,
+                form=args.form,
             )
         except FileNotFoundError:
             raise SystemExit(f"no se encontro el archivo: {args.file}")

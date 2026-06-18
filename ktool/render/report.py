@@ -271,7 +271,7 @@ def build_report(table, opt=None):
     # circuito completo combinado (SOP con compuertas compartidas)
     if opt.circuit and any(solutions[n]["sop"].const is None for n in table.outputs):
         named_sops = [(n, solutions[n]["sop"]) for n in table.outputs]
-        svg, gates = circuit.build_shared_circuit(named_sops)
+        svg, gates = circuit.build_shared_circuit(named_sops, var_order=table.variables)
         body.append("<h2>Circuito completo sugerido</h2>")
         body.append("<p class='hint'>Realizacion en SOP de todas las salidas con las compuertas AND "
                     "compartidas (los atajos). Para una salida donde convenga XOR o POS, revisa su "
