@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import webbrowser
+from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 
@@ -14,7 +16,7 @@ from ..render.report import Options, build_report, save_report
 from ..render import codegen
 from .displays import DisplayWidget
 
-from .. import theme
+from .. import theme, io as ktio
 
 REPO_URL = "https://github.com/leostriker111/ktool"
 
@@ -106,6 +108,13 @@ class App:
         self._rebuilding = False
         self.displays = []               # DisplayWidget insertados
 
+        # --- manejo de archivo / autosave ---
+        self._ready = False              # bloquea autosave durante construccion
+        self._saved_clean = True         # True si no hay cambios sin guardar
+        self._saved_path = None          # ruta del ultimo guardado real
+        self._autosave_job = None
+        self._autosave_path = self._new_autosave_path()
+
         self._build_menu()
         self._build_controls()
         self._build_table_area()
@@ -113,14 +122,23 @@ class App:
         self._bind_keys()
         self.rebuild_table()
 
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._ready = True
+
     # ---------- menu ----------
     def _build_menu(self):
         menubar = tk.Menu(self.root)
 
         m_file = tk.Menu(menubar, tearoff=0)
+        m_file.add_command(label="Nuevo", command=self.new_file, accelerator="Ctrl+N")
+        m_file.add_command(label="Abrir...", command=self.open_file, accelerator="Ctrl+O")
+        m_file.add_command(label="Guardar...", command=self.save_as, accelerator="Ctrl+S")
+        m_file.add_separator()
         m_file.add_command(label="Generar documento", command=self.generate)
         m_file.add_separator()
-        m_file.add_command(label="Salir", command=self.root.destroy)
+        m_file.add_command(label="Recuperar trabajo...", command=self.recover)
+        m_file.add_separator()
+        m_file.add_command(label="Salir", command=self._on_close)
         menubar.add_cascade(label="Archivo", menu=m_file)
 
         m_edit = tk.Menu(menubar, tearoff=0)
@@ -246,11 +264,13 @@ class App:
         self.displays.append(DisplayWidget(self, self.disp_inner, kind))
         self._disp_hint.pack_forget()
         self._refresh_displays()
+        self._touch()
 
     def clear_displays(self):
         for d in list(self.displays):
             d.remove()
         self._disp_hint.pack(pady=2)
+        self._touch()
 
     def _active_row(self):
         if self.cursor:
@@ -278,6 +298,244 @@ class App:
         for d in self.displays:
             d.relight(nv)
 
+    # ---------- archivo fuente / autosave / papelera ----------
+    def _app_dir(self):
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+        return os.path.join(base, "ktool")
+
+    def _sub_dir(self, name):
+        d = os.path.join(self._app_dir(), name)
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _new_autosave_path(self):
+        try:
+            return os.path.join(self._sub_dir("autosave"), f"sesion-{os.getpid()}{ktio.EXT}")
+        except OSError:
+            return None
+
+    def _serialize(self):
+        n = max(MIN_VARS, min(MAX_VARS, int(self.nvars.get())))
+        notes = []
+        if self.notes_on.get() and self.note_entries:
+            rows = len(self.values[0]) if self.values else 0
+            notes = [self.note_entries[r].get() if r in self.note_entries else "" for r in range(rows)]
+        return {
+            "doc_type": "table",
+            "title": "Resultados ktool",
+            "nvars": n,
+            "output_names": list(self.output_names),
+            "values": [list(col) for col in self.values],
+            "notes_on": bool(self.notes_on.get()),
+            "notes": notes,
+            "form": self.form.get(),
+            "displays": [d.to_dict() for d in self.displays],
+        }
+
+    def _apply_source(self, src):
+        names = src.get("output_names") or ["Y"]
+        values = src.get("values") or [[0] * (1 << src.get("nvars", 3))]
+        self._ready = False
+        self.output_names = list(names)
+        self.values = [list(col) for col in values]
+        self.nvars.set(src.get("nvars", 3))
+        self.nouts.set(len(names))
+        self.notes_on.set(bool(src.get("notes_on", False)))
+        self.form.set(src.get("form", "auto"))
+        self.rebuild_table()
+        notes = src.get("notes") or []
+        for r, e in self.note_entries.items():
+            if r < len(notes):
+                e.delete(0, tk.END)
+                e.insert(0, notes[r])
+        self.clear_displays()
+        for d in src.get("displays", []):
+            self.insert_display(d.get("kind", "7seg"))
+            segs = d.get("segments")
+            if segs:
+                self.displays[-1].set_names(segs)
+        self._refresh_displays()
+        self._ready = True
+
+    def _has_content(self):
+        if any(v != 0 for col in self.values for v in col):
+            return True
+        return bool(self.displays)
+
+    def _touch(self):
+        """Marca cambios sin guardar y agenda un autosave (con debounce)."""
+        if not self._ready or self._rebuilding:
+            return
+        self._saved_clean = False
+        if self._autosave_job is not None:
+            try:
+                self.root.after_cancel(self._autosave_job)
+            except Exception:
+                pass
+        self._autosave_job = self.root.after(1500, self._autosave)
+
+    def _autosave(self):
+        self._autosave_job = None
+        if not self._autosave_path:
+            return
+        try:
+            ktio.save(self._serialize(), self._autosave_path)
+        except OSError:
+            pass
+
+    def _discard_autosave(self):
+        if self._autosave_path and os.path.exists(self._autosave_path):
+            try:
+                os.remove(self._autosave_path)
+            except OSError:
+                pass
+
+    def _to_papelera(self):
+        if not (self._autosave_path and os.path.exists(self._autosave_path)):
+            return
+        try:
+            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            dest = os.path.join(self._sub_dir("papelera"), f"{stamp}{ktio.EXT}")
+            os.replace(self._autosave_path, dest)
+        except OSError:
+            pass
+
+    def _park_current(self):
+        """Si hay trabajo sin guardar, mandalo a la papelera y arranca sesion nueva."""
+        if not self._saved_clean and self._has_content():
+            self._autosave()
+            self._to_papelera()
+        self._autosave_path = self._new_autosave_path()
+
+    def _confirm_discard(self):
+        if self._saved_clean or not self._has_content():
+            return True
+        return messagebox.askyesno(
+            "Cambios sin guardar",
+            "Tienes cambios sin guardar. Se mandaran a la papelera (recuperables "
+            "despues). Continuar?")
+
+    def new_file(self):
+        if not self._confirm_discard():
+            return
+        self._park_current()
+        self._apply_source({"doc_type": "table", "nvars": 3, "output_names": ["Y"],
+                            "values": [[0] * 8], "form": "auto"})
+        self._saved_clean = True
+        self._saved_path = None
+
+    def open_file(self):
+        if not self._confirm_discard():
+            return
+        path = filedialog.askopenfilename(
+            filetypes=[("Fuente ktool", "*.ktool.json *.json"), ("Todos", "*.*")])
+        if not path:
+            return
+        try:
+            src = ktio.load(path)
+        except (OSError, ValueError) as e:
+            messagebox.showerror("No se pudo abrir", str(e))
+            return
+        if ktio.doc_type(src) == "fsm":
+            messagebox.showinfo(
+                "Es una maquina de estados",
+                "Ese archivo es una maquina (FSM). Por ahora abrela por terminal:\n\n"
+                f'    ktool fsm "{path}" --ff JK\n\n'
+                "La pestana de FSM en la interfaz viene en la siguiente version.")
+            return
+        self._park_current()
+        try:
+            self._apply_source(src)
+        except (KeyError, ValueError, tk.TclError) as e:
+            messagebox.showerror("Archivo invalido", str(e))
+            return
+        self._saved_clean = True
+        self._saved_path = path
+
+    def save_as(self):
+        path = filedialog.asksaveasfilename(
+            defaultextension=ktio.EXT,
+            filetypes=[("Fuente ktool", "*.ktool.json"), ("JSON", "*.json")],
+            initialfile="tabla" + ktio.EXT)
+        if not path:
+            return
+        try:
+            ktio.save(self._serialize(), path)
+        except OSError as e:
+            messagebox.showerror("No se pudo guardar", str(e))
+            return
+        self._saved_path = path
+        self._saved_clean = True
+        self._discard_autosave()
+        messagebox.showinfo("Guardado", f"Archivo fuente guardado en:\n{path}")
+
+    def recover(self):
+        try:
+            d = self._sub_dir("papelera")
+            files = [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".json")]
+        except OSError:
+            files = []
+        files.sort(key=os.path.getmtime, reverse=True)
+        if not files:
+            messagebox.showinfo("Papelera vacia", "No hay trabajos sin guardar para recuperar.")
+            return
+        self._recover_window(files)
+
+    def _recover_window(self, files):
+        win = tk.Toplevel(self.root)
+        win.title("Recuperar trabajo")
+        ttk.Label(win, text="Trabajos sin guardar (lo mas reciente arriba):",
+                  padding=8).pack(anchor="w")
+        lb = tk.Listbox(win, width=58, height=10)
+        for p in files:
+            ts = datetime.fromtimestamp(os.path.getmtime(p)).strftime("%Y-%m-%d %H:%M")
+            lb.insert(tk.END, f"{ts}   {os.path.basename(p)}")
+        lb.pack(fill=tk.BOTH, expand=True, padx=8)
+        lb.selection_set(0)
+
+        def do_open():
+            sel = lb.curselection()
+            if not sel:
+                return
+            try:
+                self._park_current()
+                self._apply_source(ktio.load(files[sel[0]]))
+                self._saved_clean = False
+            except (OSError, ValueError, KeyError, tk.TclError) as e:
+                messagebox.showerror("No se pudo recuperar", str(e))
+                return
+            win.destroy()
+
+        def do_delete():
+            sel = lb.curselection()
+            if not sel:
+                return
+            try:
+                os.remove(files[sel[0]])
+            except OSError:
+                pass
+            win.destroy()
+            self.recover()
+
+        bar = ttk.Frame(win, padding=8)
+        bar.pack(fill=tk.X)
+        ttk.Button(bar, text="Abrir", command=do_open).pack(side=tk.LEFT)
+        ttk.Button(bar, text="Borrar", command=do_delete).pack(side=tk.LEFT, padx=6)
+        ttk.Button(bar, text="Cerrar", command=win.destroy).pack(side=tk.RIGHT)
+
+    def _on_close(self):
+        if self._autosave_job is not None:
+            try:
+                self.root.after_cancel(self._autosave_job)
+            except Exception:
+                pass
+        if not self._saved_clean and self._has_content():
+            self._autosave()
+            self._to_papelera()
+        else:
+            self._discard_autosave()
+        self.root.destroy()
+
     def _build_bottom(self):
         frame = ttk.LabelFrame(self.root, text="Resultados", padding=6)
         frame.pack(side=tk.BOTTOM, fill=tk.X, padx=8, pady=6)
@@ -296,6 +554,12 @@ class App:
         r.bind("<Control-X>", lambda e: self._guarded(self.cut))
         r.bind("<Control-a>", lambda e: self._guarded(self.select_all))
         r.bind("<Control-A>", lambda e: self._guarded(self.select_all))
+        r.bind("<Control-s>", lambda e: self.save_as())
+        r.bind("<Control-S>", lambda e: self.save_as())
+        r.bind("<Control-o>", lambda e: self.open_file())
+        r.bind("<Control-O>", lambda e: self.open_file())
+        r.bind("<Control-n>", lambda e: self.new_file())
+        r.bind("<Control-N>", lambda e: self.new_file())
         r.bind("<Escape>", lambda e: self.clear_selection())
         for sym in ("Up", "Down", "Left", "Right"):
             r.bind(f"<{sym}>", self._on_arrow)
@@ -487,6 +751,7 @@ class App:
             pass
         self._rebuilding = False
         self._refresh_displays()
+        self._touch()
 
     # ---------- seleccion ----------
     def _refresh_cell(self, oi, r):
@@ -539,6 +804,7 @@ class App:
         self.values[oi][r] = v
         self._refresh_cell(oi, r)
         self._refresh_displays()
+        self._touch()
 
     def apply_value(self, val):
         if not self.selected:
@@ -547,6 +813,7 @@ class App:
             self.values[oi][r] = val
             self._refresh_cell(oi, r)
         self._refresh_displays()
+        self._touch()
 
     def select_all(self):
         rows = len(self.values[0]) if self.values else 0
@@ -561,6 +828,7 @@ class App:
                 self.values[oi][r] = 0
                 self._refresh_cell(oi, r)
         self._refresh_displays()
+        self._touch()
 
     # ---------- portapapeles (formato Excel/TSV) ----------
     def _selection_bounds(self):
@@ -585,6 +853,7 @@ class App:
         for oi, r in self.selected:
             self.values[oi][r] = 0
             self._refresh_cell(oi, r)
+        self._touch()
 
     def paste(self):
         try:
@@ -617,6 +886,7 @@ class App:
             for r in range(rows):
                 self._refresh_cell(oi, r)
         self._refresh_displays()
+        self._touch()
 
     # ---------- renombrar salida ----------
     def rename_output(self, oi):
@@ -635,6 +905,7 @@ class App:
         self.out_headers[oi].config(text=new)
         self.expr_target["values"] = self.output_names
         self._refresh_displays()
+        self._touch()
 
     # ---------- acciones ----------
     def _current_table(self):
@@ -668,6 +939,7 @@ class App:
                 self.values[oi][r] = nums[r]
                 self._refresh_cell(oi, r)
             self._refresh_displays()
+            self._touch()
             return
 
         try:
@@ -685,6 +957,7 @@ class App:
             self.values[oi][r] = expr.evaluate(ast, env)
             self._refresh_cell(oi, r)
         self._refresh_displays()
+        self._touch()
 
     def translate_expr(self):
         text = self.expr_entry.get().strip()

@@ -94,6 +94,15 @@ class DisplayWidget:
         seg["name"] = new.strip()
         self.canvas.itemconfig(seg["text"], text=seg["name"])
         self.app._refresh_displays()
+        self.app._touch()
+
+    def to_dict(self):
+        return {"kind": self.kind, "segments": [s["name"] for s in self.segments]}
+
+    def set_names(self, names):
+        for seg, name in zip(self.segments, names):
+            seg["name"] = str(name)
+            self.canvas.itemconfig(seg["text"], text=seg["name"])
 
     def relight(self, name_value):
         for seg in self.segments:

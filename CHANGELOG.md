@@ -14,7 +14,18 @@
 - Documento nuevo: diagrama de estados en SVG, tabla de transiciones/excitación,
   mapas de Karnaugh y ecuaciones de excitación, decodificador de salida con
   display de 7 segmentos por estado, y circuito combinado.
-- CLI: `kmap fsm maquina.json --ff JK` (también D, T, SR) desde un archivo JSON.
+- CLI: `ktool fsm maquina.json --ff JK` (también D, T, SR) desde un archivo JSON.
+- `ktool` pasa a ser el comando principal; `kmap` queda como alias histórico.
+- **Archivo fuente** (`.ktool.json`): guarda la *entrada* (no el HTML) para
+  reabrir y regenerar. Formato genérico y retrocompatible (`ktool/io.py`): agregar
+  una función = agregar una clave; al leer se usan defaults, así los archivos
+  viejos siguen abriendo. Autodetecta tabla vs máquina (los `maquina.json`
+  previos ya son fuentes válidos).
+- GUI: menú **Archivo → Nuevo / Abrir / Guardar** (guarda toda la mesa de trabajo:
+  tabla, nombres, notas, forma y los displays con sus etiquetas).
+- GUI: **autosave de fondo** + **papelera**. Mientras trabajas se va guardando un
+  archivo volátil; al guardar se persiste donde indiques; si cierras sin guardar,
+  va a la papelera y se recupera con *Archivo → Recuperar trabajo*.
 - `seg7_strip_svg`: dibuja una palabra/número completo de 7 segmentos en un SVG.
 - Ejemplos de muestra en `ejemplos/`: contador decimal 0-9 (decoder BCD con
   don't cares) y letrero giratorio "tool". Cada uno trae `diagrama.svg` y la
